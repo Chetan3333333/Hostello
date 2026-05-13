@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import '../../styles/owner.css';
 
 export default function OwnerLogin() {
-  const { hostels, ownerLogin, isOwnerLoggedIn } = useApp();
+  const { hostels, ownerLogin, isOwnerLoggedIn, loading: contextLoading } = useApp();
   const navigate = useNavigate();
   const [selectedHostel, setSelectedHostel] = useState('');
   const [pin, setPin] = useState('');
@@ -15,9 +15,13 @@ export default function OwnerLogin() {
   const [error, setError] = useState('');
 
   // If already logged in, redirect
-  if (isOwnerLoggedIn) {
+  if (isOwnerLoggedIn && !contextLoading) {
     navigate('/owner/dashboard', { replace: true });
     return null;
+  }
+
+  if (contextLoading) {
+    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
   }
 
   const handleSubmit = async (e) => {

@@ -1,126 +1,331 @@
-import { createContext, useContext, useState, useCallback } from 'react';
-import { getInitialData } from '../data/mockData';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 const AppContext = createContext(null);
 
 export function AppProvider({ children }) {
-  const [data, setData] = useState(() => getInitialData());
+  const [data, setData] = useState({
+    hostels: [],
+    rooms: [],
+    tenants: [],
+    payments: [],
+    staff: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [ownerAuth, setOwnerAuth] = useState(() => {
+    const saved = localStorage.getItem('hostello_auth');
+    return saved ? JSON.parse(saved) : null;
+  });
 
-  const saveData = useCallback((newData) => {
-    setData(newData);
-    localStorage.setItem('hostello_data', JSON.stringify(newData));
+  // Fetch initial data from Supabase
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [
+        { data: hostelsData },
+        { data: roomsData },
+        { data: tenantsData },
+        { data: paymentsData },
+        { data: staffData }
+      ] = await Promise.all([
+        supabase.from('hostels').select('*'),
+        supabase.from('rooms').select('*'),
+        supabase.from('tenants').select('*'),
+        supabase.from('payments').select('*'),
+        supabase.from('staff').select('*')
+      ]);
+
+      // Convert snake_case back to camelCase for our app to consume
+      const mapKeys = (arr) => arr?.map(item => {
+        const newObj = {};
+        for (let key in item) {
+          const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+          newObj[camelKey] = item[key];
+        }
+        return newObj;
+      }) || [];
+
+      setData({
+        hostels: mapKeys(hostelsData),
+        rooms: mapKeys(roomsData),
+        tenants: mapKeys(tenantsData),
+        payments: mapKeys(paymentsData),
+        staff: mapKeys(staffData)
+      });
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast.error('Failed to load data from database');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
   }, []);
 
   // Auth
-  const isOwnerLoggedIn = !!data.ownerAuth;
-  const ownerHostelId = data.ownerAuth?.hostelId || null;
+  const isOwnerLoggedIn = !!ownerAuth;
+  const ownerHostelId = ownerAuth?.hostelId || null;
 
   const ownerLogin = useCallback((hostelId, pin) => {
     const hostel = data.hostels.find(h => h.id === hostelId);
     if (!hostel) return { success: false, error: 'Hostel not found' };
     if (hostel.pin !== pin) return { success: false, error: 'Incorrect PIN' };
-    const newData = { ...data, ownerAuth: { hostelId, loggedInAt: new Date().toISOString() }, currentHostelId: hostelId };
-    saveData(newData);
+    
+    const authData = { hostelId, loggedInAt: new Date().toISOString() };
+    setOwnerAuth(authData);
+    localStorage.setItem('hostello_auth', JSON.stringify(authData));
     return { success: true };
-  }, [data, saveData]);
+  }, [data.hostels]);
 
   const ownerLogout = useCallback(() => {
-    saveData({ ...data, ownerAuth: null, currentHostelId: null });
-  }, [data, saveData]);
+    setOwnerAuth(null);
+    localStorage.removeItem('hostello_auth');
+  }, []);
 
   // Derived data — scoped to the single hostel
-  const activeHostelId = data.ownerAuth?.hostelId || data.currentHostelId || data.hostels[0]?.id;
+  const activeHostelId = ownerAuth?.hostelId || data.hostels[0]?.id;
   const currentHostel = data.hostels.find(h => h.id === activeHostelId) || data.hostels[0];
   const currentRooms = data.rooms.filter(r => r.hostelId === activeHostelId);
   const currentTenants = data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive);
   const currentPayments = data.payments.filter(p => p.hostelId === activeHostelId);
-  const currentStaff = (data.staff || []).filter(s => s.hostelId === activeHostelId);
+  const currentStaff = data.staff.filter(s => s.hostelId === activeHostelId);
 
-  const setCurrentHostel = useCallback((hostelId) => {
-    saveData({ ...data, currentHostelId: hostelId });
-  }, [data, saveData]);
+  // Helper to convert camelCase to snake_case for Supabase inserts
+  const toSnakeCase = (obj) => {
+    const newObj = {};
+    for (let key in obj) {
+      if (key === 'createdAt') continue; // Don't override default timestamp
+      if (key === 'hasAC') {
+        newObj['has_ac'] = obj[key];
+        continue;
+      }
+      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+      newObj[snakeKey] = obj[key];
+    }
+    return newObj;
+  };
 
   // Room CRUD
-  const addRoom = useCallback((room) => {
+  const addRoom = useCallback(async (room) => {
     const newRoom = { ...room, id: `${activeHostelId}-r${Date.now()}`, hostelId: activeHostelId };
-    saveData({ ...data, rooms: [...data.rooms, newRoom] });
-  }, [data, saveData, activeHostelId]);
+    try {
+      const { error } = await supabase.from('rooms').insert([toSnakeCase(newRoom)]);
+      if (error) throw error;
+      setData(prev => ({ ...prev, rooms: [...prev.rooms, newRoom] }));
+      toast.success('Room added');
+    } catch (err) {
+      toast.error('Failed to add room');
+      console.error(err);
+    }
+  }, [activeHostelId]);
 
-  const updateRoom = useCallback((roomId, updates) => {
-    saveData({ ...data, rooms: data.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r) });
-  }, [data, saveData]);
+  const updateRoom = useCallback(async (roomId, updates) => {
+    try {
+      const { error } = await supabase.from('rooms').update(toSnakeCase(updates)).eq('id', roomId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        rooms: prev.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r)
+      }));
+      toast.success('Room updated');
+    } catch (err) {
+      toast.error('Failed to update room');
+      console.error(err);
+    }
+  }, []);
 
-  const deleteRoom = useCallback((roomId) => {
-    saveData({ ...data, rooms: data.rooms.filter(r => r.id !== roomId) });
-  }, [data, saveData]);
+  const deleteRoom = useCallback(async (roomId) => {
+    try {
+      const { error } = await supabase.from('rooms').delete().eq('id', roomId);
+      if (error) throw error;
+      setData(prev => ({ ...prev, rooms: prev.rooms.filter(r => r.id !== roomId) }));
+      toast.success('Room deleted');
+    } catch (err) {
+      toast.error('Failed to delete room');
+      console.error(err);
+    }
+  }, []);
 
   // Tenant CRUD
-  const addTenant = useCallback((tenant) => {
+  const addTenant = useCallback(async (tenant) => {
     const newTenant = { ...tenant, id: `t-${Date.now()}`, hostelId: activeHostelId, isActive: true };
-    const updatedRooms = data.rooms.map(r => {
-      if (r.id === tenant.roomId) {
-        return { ...r, currentOccupants: r.currentOccupants + 1, status: 'occupied' };
-      }
-      return r;
-    });
-    saveData({ ...data, tenants: [...data.tenants, newTenant], rooms: updatedRooms });
-  }, [data, saveData, activeHostelId]);
+    const room = currentRooms.find(r => r.id === tenant.roomId);
+    
+    if (!room) return;
+    
+    const newOccupants = (room.currentOccupants || 0) + 1;
+    const roomUpdates = { currentOccupants: newOccupants, status: 'occupied' };
 
-  const updateTenant = useCallback((tenantId, updates) => {
-    saveData({ ...data, tenants: data.tenants.map(t => t.id === tenantId ? { ...t, ...updates } : t) });
-  }, [data, saveData]);
+    try {
+      // Execute both queries
+      await Promise.all([
+        supabase.from('tenants').insert([toSnakeCase(newTenant)]),
+        supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id)
+      ]);
 
-  const checkoutTenant = useCallback((tenantId) => {
+      setData(prev => ({
+        ...prev,
+        tenants: [...prev.tenants, newTenant],
+        rooms: prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r)
+      }));
+      toast.success('Tenant added successfully');
+    } catch (err) {
+      toast.error('Failed to add tenant');
+      console.error(err);
+    }
+  }, [activeHostelId, currentRooms]);
+
+  const updateTenant = useCallback(async (tenantId, updates) => {
+    try {
+      const { error } = await supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...updates } : t)
+      }));
+      toast.success('Tenant updated');
+    } catch (err) {
+      toast.error('Failed to update tenant');
+      console.error(err);
+    }
+  }, []);
+
+  const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
     if (!tenant) return;
-    const updatedTenants = data.tenants.map(t => t.id === tenantId ? { ...t, isActive: false, checkOutDate: new Date().toISOString().split('T')[0] } : t);
-    const updatedRooms = data.rooms.map(r => {
-      if (r.id === tenant.roomId) {
-        const newOccupants = Math.max(0, r.currentOccupants - 1);
-        return { ...r, currentOccupants: newOccupants, status: newOccupants === 0 ? 'available' : 'occupied' };
+    
+    const tenantUpdates = { isActive: false, checkOutDate: new Date().toISOString().split('T')[0] };
+    const room = currentRooms.find(r => r.id === tenant.roomId);
+    
+    let roomUpdates = null;
+    if (room) {
+      const newOccupants = Math.max(0, (room.currentOccupants || 0) - 1);
+      roomUpdates = { currentOccupants: newOccupants, status: newOccupants === 0 ? 'available' : 'occupied' };
+    }
+
+    try {
+      const promises = [supabase.from('tenants').update(toSnakeCase(tenantUpdates)).eq('id', tenantId)];
+      if (roomUpdates) {
+        promises.push(supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id));
       }
-      return r;
-    });
-    saveData({ ...data, tenants: updatedTenants, rooms: updatedRooms });
-  }, [data, saveData]);
+      await Promise.all(promises);
+
+      setData(prev => ({
+        ...prev,
+        tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...tenantUpdates } : t),
+        rooms: roomUpdates ? prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r) : prev.rooms
+      }));
+      toast.success('Tenant checked out');
+    } catch (err) {
+      toast.error('Failed to checkout tenant');
+      console.error(err);
+    }
+  }, [data.tenants, currentRooms]);
 
   // Payment CRUD
-  const addPayment = useCallback((payment) => {
+  const addPayment = useCallback(async (payment) => {
     const newPayment = { ...payment, id: `pay-${Date.now()}`, hostelId: activeHostelId };
-    saveData({ ...data, payments: [...data.payments, newPayment] });
-  }, [data, saveData, activeHostelId]);
+    try {
+      const { error } = await supabase.from('payments').insert([toSnakeCase(newPayment)]);
+      if (error) throw error;
+      setData(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
+      toast.success('Payment added');
+    } catch (err) {
+      toast.error('Failed to add payment');
+      console.error(err);
+    }
+  }, [activeHostelId]);
 
-  const updatePayment = useCallback((paymentId, updates) => {
-    saveData({ ...data, payments: data.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p) });
-  }, [data, saveData]);
+  const updatePayment = useCallback(async (paymentId, updates) => {
+    try {
+      const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
+      }));
+      toast.success('Payment updated');
+    } catch (err) {
+      toast.error('Failed to update payment');
+      console.error(err);
+    }
+  }, []);
 
-  const recordPayment = useCallback((paymentId) => {
-    saveData({
-      ...data,
-      payments: data.payments.map(p => p.id === paymentId ? {
-        ...p, status: 'paid', paidDate: new Date().toISOString().split('T')[0], method: 'Cash'
-      } : p)
-    });
-  }, [data, saveData]);
+  const recordPayment = useCallback(async (paymentId) => {
+    const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0], method: 'Cash' };
+    try {
+      const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
+      }));
+      toast.success('Payment recorded');
+    } catch (err) {
+      toast.error('Failed to record payment');
+      console.error(err);
+    }
+  }, []);
 
   // Hostel Profile
-  const updateHostel = useCallback((hostelId, updates) => {
-    saveData({ ...data, hostels: data.hostels.map(h => h.id === hostelId ? { ...h, ...updates } : h) });
-  }, [data, saveData]);
+  const updateHostel = useCallback(async (hostelId, updates) => {
+    try {
+      const { error } = await supabase.from('hostels').update(toSnakeCase(updates)).eq('id', hostelId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        hostels: prev.hostels.map(h => h.id === hostelId ? { ...h, ...updates } : h)
+      }));
+      toast.success('Hostel profile updated');
+    } catch (err) {
+      toast.error('Failed to update hostel profile');
+      console.error(err);
+    }
+  }, []);
 
   // Staff CRUD
-  const addStaff = useCallback((staffMember) => {
+  const addStaff = useCallback(async (staffMember) => {
     const newStaff = { ...staffMember, id: `staff-${Date.now()}`, hostelId: activeHostelId };
-    saveData({ ...data, staff: [...(data.staff || []), newStaff] });
-  }, [data, saveData, activeHostelId]);
+    try {
+      const { error } = await supabase.from('staff').insert([toSnakeCase(newStaff)]);
+      if (error) throw error;
+      setData(prev => ({ ...prev, staff: [...prev.staff, newStaff] }));
+      toast.success('Staff added');
+    } catch (err) {
+      toast.error('Failed to add staff');
+      console.error(err);
+    }
+  }, [activeHostelId]);
 
-  const updateStaff = useCallback((staffId, updates) => {
-    saveData({ ...data, staff: (data.staff || []).map(s => s.id === staffId ? { ...s, ...updates } : s) });
-  }, [data, saveData]);
+  const updateStaff = useCallback(async (staffId, updates) => {
+    try {
+      const { error } = await supabase.from('staff').update(toSnakeCase(updates)).eq('id', staffId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        staff: prev.staff.map(s => s.id === staffId ? { ...s, ...updates } : s)
+      }));
+      toast.success('Staff updated');
+    } catch (err) {
+      toast.error('Failed to update staff');
+      console.error(err);
+    }
+  }, []);
 
-  const deleteStaff = useCallback((staffId) => {
-    saveData({ ...data, staff: (data.staff || []).filter(s => s.id !== staffId) });
-  }, [data, saveData]);
+  const deleteStaff = useCallback(async (staffId) => {
+    try {
+      const { error } = await supabase.from('staff').delete().eq('id', staffId);
+      if (error) throw error;
+      setData(prev => ({ ...prev, staff: prev.staff.filter(s => s.id !== staffId) }));
+      toast.success('Staff deleted');
+    } catch (err) {
+      toast.error('Failed to delete staff');
+      console.error(err);
+    }
+  }, []);
 
   // Stats
   const getStats = useCallback(() => {
@@ -141,8 +346,8 @@ export function AppProvider({ children }) {
   }, [currentRooms, currentPayments, currentTenants]);
 
   const value = {
-    data, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
-    setCurrentHostel, addRoom, updateRoom, deleteRoom,
+    data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
+    addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant,
     addPayment, updatePayment, recordPayment,
     updateHostel, getStats, hostels: data.hostels,

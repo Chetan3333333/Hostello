@@ -14,7 +14,11 @@ import HostelSearch from './pages/student/HostelSearch';
 import HostelDetail from './pages/student/HostelDetail';
 
 function ProtectedOwnerRoute({ children }) {
-  const { isOwnerLoggedIn } = useApp();
+  const { isOwnerLoggedIn, loading } = useApp();
+  
+  if (loading) {
+    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
+  }
   if (!isOwnerLoggedIn) {
     return <Navigate to="/owner/login" replace />;
   }
