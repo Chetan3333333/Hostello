@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, SlidersHorizontal, Star, MapPin, ArrowRight, Building2, X } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { Search, SlidersHorizontal, Star, MapPin, ArrowRight, Building2 } from 'lucide-react';
+import { useApp } from '../../hooks/useApp';
 import { amenityLabels } from '../../data/mockData';
 import '../../styles/student.css';
 

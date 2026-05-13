@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, BedDouble, Users, CreditCard, UserCog, Building2, Menu, X, Bell, LogOut } from 'lucide-react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import '../../styles/owner.css';
@@ -19,8 +19,8 @@ export default function OwnerLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    ownerLogout();
+  const handleLogout = async () => {
+    await ownerLogout();
     toast.success('Logged out successfully');
     navigate('/owner/login', { replace: true });
   };

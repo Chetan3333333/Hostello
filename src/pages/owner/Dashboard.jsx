@@ -1,11 +1,22 @@
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
 import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 
+function CustomTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: '#1A1D36', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <p style={{ color: '#EEEEF5', fontSize: '0.8125rem', fontWeight: 600 }}>₹{payload[0].value.toLocaleString()}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function Dashboard() {
-  const { getStats, currentPayments, currentTenants, currentRooms } = useApp();
+  const { getStats, currentPayments, currentTenants } = useApp();
   const stats = getStats();
 
   // Occupancy pie data
@@ -42,17 +53,6 @@ export default function Dashboard() {
       color: 'blue',
     })),
   ].sort((a, b) => b.time?.localeCompare(a.time)).slice(0, 6);
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={{ background: '#1A1D36', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <p style={{ color: '#EEEEF5', fontSize: '0.8125rem', fontWeight: 600 }}>₹{payload[0].value.toLocaleString()}</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div className="animate-fade">

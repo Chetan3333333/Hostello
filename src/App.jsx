@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider } from './context/AppContext';
+import { useApp } from './hooks/useApp';
 import LandingPage from './pages/LandingPage';
 import OwnerLogin from './pages/owner/OwnerLogin';
 import OwnerLayout from './pages/owner/OwnerLayout';

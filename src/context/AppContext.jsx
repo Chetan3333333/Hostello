@@ -1,114 +1,206 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
+import { AppContext } from './app-context';
 
-const AppContext = createContext(null);
+const emptyData = {
+  hostels: [],
+  rooms: [],
+  tenants: [],
+  payments: [],
+  staff: []
+};
+
+const mapKeys = (arr) => arr?.map(item => {
+  const newObj = {};
+  for (const key in item) {
+    const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
+    newObj[camelKey] = item[key];
+  }
+  return newObj;
+}) || [];
+
+const toSnakeCase = (obj) => {
+  const newObj = {};
+  for (const key in obj) {
+    if (key === 'createdAt') continue;
+    if (key === 'hasAC') {
+      newObj.has_ac = obj[key];
+      continue;
+    }
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    newObj[snakeKey] = obj[key];
+  }
+  return newObj;
+};
 
 export function AppProvider({ children }) {
-  const [data, setData] = useState({
-    hostels: [],
-    rooms: [],
-    tenants: [],
-    payments: [],
-    staff: []
-  });
+  const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
-  const [ownerAuth, setOwnerAuth] = useState(() => {
-    const saved = localStorage.getItem('hostello_auth');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [session, setSession] = useState(null);
+  const [ownerProfile, setOwnerProfile] = useState(null);
 
-  // Fetch initial data from Supabase
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [
-        { data: hostelsData },
-        { data: roomsData },
-        { data: tenantsData },
-        { data: paymentsData },
-        { data: staffData }
-      ] = await Promise.all([
-        supabase.from('hostels').select('*'),
-        supabase.from('rooms').select('*'),
-        supabase.from('tenants').select('*'),
-        supabase.from('payments').select('*'),
-        supabase.from('staff').select('*')
-      ]);
+  const fetchPublicData = useCallback(async () => {
+    const [{ data: hostelsData, error: hostelsError }, { data: roomsData, error: roomsError }] = await Promise.all([
+      supabase.from('hostels').select('id,name,type,address,phone,whatsapp,email,description,nearby_landmarks,rating,total_rooms,amenities,rules,pricing,established,created_at'),
+      supabase.from('rooms').select('*')
+    ]);
 
-      // Convert snake_case back to camelCase for our app to consume
-      const mapKeys = (arr) => arr?.map(item => {
-        const newObj = {};
-        for (let key in item) {
-          const camelKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase());
-          newObj[camelKey] = item[key];
-        }
-        return newObj;
-      }) || [];
+    if (hostelsError) throw hostelsError;
+    if (roomsError) throw roomsError;
 
-      setData({
-        hostels: mapKeys(hostelsData),
-        rooms: mapKeys(roomsData),
-        tenants: mapKeys(tenantsData),
-        payments: mapKeys(paymentsData),
-        staff: mapKeys(staffData)
-      });
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data from database');
-    } finally {
-      setLoading(false);
-    }
-  };
+    setData(prev => ({
+      ...prev,
+      hostels: mapKeys(hostelsData),
+      rooms: mapKeys(roomsData)
+    }));
+  }, []);
+
+  const clearOwnerData = useCallback(() => {
+    setOwnerProfile(null);
+    setData(prev => ({
+      ...prev,
+      tenants: [],
+      payments: [],
+      staff: []
+    }));
+  }, []);
+
+  const fetchOwnerData = useCallback(async (userId) => {
+    const { data: profileData, error: profileError } = await supabase
+      .from('owner_profiles')
+      .select('hostel_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const hostelId = profileData.hostel_id;
+    const [
+      { data: hostelData, error: hostelError },
+      { data: roomsData, error: roomsError },
+      { data: tenantsData, error: tenantsError },
+      { data: paymentsData, error: paymentsError },
+      { data: staffData, error: staffError }
+    ] = await Promise.all([
+      supabase.from('hostels').select('*').eq('id', hostelId).single(),
+      supabase.from('rooms').select('*').eq('hostel_id', hostelId),
+      supabase.from('tenants').select('*').eq('hostel_id', hostelId),
+      supabase.from('payments').select('*').eq('hostel_id', hostelId),
+      supabase.from('staff').select('*').eq('hostel_id', hostelId)
+    ]);
+
+    const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError;
+    if (firstError) throw firstError;
+
+    const mappedHostel = mapKeys([hostelData])[0];
+    setOwnerProfile({ userId, hostelId });
+    setData(prev => ({
+      hostels: [
+        ...prev.hostels.filter(h => h.id !== hostelId),
+        mappedHostel
+      ],
+      rooms: [
+        ...prev.rooms.filter(r => r.hostelId !== hostelId),
+        ...mapKeys(roomsData)
+      ],
+      tenants: mapKeys(tenantsData),
+      payments: mapKeys(paymentsData),
+      staff: mapKeys(staffData)
+    }));
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    let isActive = true;
 
-  // Auth
-  const isOwnerLoggedIn = !!ownerAuth;
-  const ownerHostelId = ownerAuth?.hostelId || null;
+    const loadInitialData = async () => {
+      try {
+        const [{ data: authData }] = await Promise.all([
+          supabase.auth.getSession(),
+          fetchPublicData()
+        ]);
 
-  const ownerLogin = useCallback((hostelId, pin) => {
-    const hostel = data.hostels.find(h => h.id === hostelId);
-    if (!hostel) return { success: false, error: 'Hostel not found' };
-    if (hostel.pin !== pin) return { success: false, error: 'Incorrect PIN' };
-    
-    const authData = { hostelId, loggedInAt: new Date().toISOString() };
-    setOwnerAuth(authData);
-    localStorage.setItem('hostello_auth', JSON.stringify(authData));
-    return { success: true };
-  }, [data.hostels]);
+        if (!isActive) return;
 
-  const ownerLogout = useCallback(() => {
-    setOwnerAuth(null);
-    localStorage.removeItem('hostello_auth');
-  }, []);
+        const initialSession = authData.session;
+        setSession(initialSession);
 
-  // Derived data — scoped to the single hostel
-  const activeHostelId = ownerAuth?.hostelId || data.hostels[0]?.id;
+        if (initialSession) {
+          await fetchOwnerData(initialSession.user.id);
+        } else {
+          clearOwnerData();
+        }
+      } catch (error) {
+        console.error('Error loading Hostello data:', error);
+        toast.error('Failed to load data from database');
+      } finally {
+        if (isActive) setLoading(false);
+      }
+    };
+
+    loadInitialData();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+
+      if (!nextSession) {
+        clearOwnerData();
+        return;
+      }
+
+      const loadOwner = async () => {
+        try {
+          await fetchOwnerData(nextSession.user.id);
+        } catch (error) {
+          console.error('Error loading owner data:', error);
+          toast.error('Owner account is not linked to a hostel yet');
+          await supabase.auth.signOut();
+          clearOwnerData();
+        }
+      };
+
+      loadOwner();
+    });
+
+    return () => {
+      isActive = false;
+      listener.subscription.unsubscribe();
+    };
+  }, [clearOwnerData, fetchOwnerData, fetchPublicData]);
+
+  const isOwnerLoggedIn = !!session && !!ownerProfile;
+  const ownerHostelId = ownerProfile?.hostelId || null;
+
+  const ownerLogin = useCallback(async (email, password) => {
+    const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { success: false, error: error.message };
+
+    try {
+      await fetchOwnerData(authData.user.id);
+      return { success: true };
+    } catch (profileError) {
+      await supabase.auth.signOut();
+      clearOwnerData();
+      return {
+        success: false,
+        error: profileError.message || 'This owner account is not linked to a hostel'
+      };
+    }
+  }, [clearOwnerData, fetchOwnerData]);
+
+  const ownerLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    clearOwnerData();
+  }, [clearOwnerData]);
+
+  const activeHostelId = ownerHostelId || data.hostels[0]?.id;
   const currentHostel = data.hostels.find(h => h.id === activeHostelId) || data.hostels[0];
   const currentRooms = data.rooms.filter(r => r.hostelId === activeHostelId);
   const currentTenants = data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive);
   const currentPayments = data.payments.filter(p => p.hostelId === activeHostelId);
   const currentStaff = data.staff.filter(s => s.hostelId === activeHostelId);
 
-  // Helper to convert camelCase to snake_case for Supabase inserts
-  const toSnakeCase = (obj) => {
-    const newObj = {};
-    for (let key in obj) {
-      if (key === 'createdAt') continue; // Don't override default timestamp
-      if (key === 'hasAC') {
-        newObj['has_ac'] = obj[key];
-        continue;
-      }
-      const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-      newObj[snakeKey] = obj[key];
-    }
-    return newObj;
-  };
-
-  // Room CRUD
   const addRoom = useCallback(async (room) => {
     const newRoom = { ...room, id: `${activeHostelId}-r${Date.now()}`, hostelId: activeHostelId };
     try {
@@ -149,18 +241,16 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Tenant CRUD
   const addTenant = useCallback(async (tenant) => {
     const newTenant = { ...tenant, id: `t-${Date.now()}`, hostelId: activeHostelId, isActive: true };
     const room = currentRooms.find(r => r.id === tenant.roomId);
-    
+
     if (!room) return;
-    
+
     const newOccupants = (room.currentOccupants || 0) + 1;
     const roomUpdates = { currentOccupants: newOccupants, status: 'occupied' };
 
     try {
-      // Execute both queries
       await Promise.all([
         supabase.from('tenants').insert([toSnakeCase(newTenant)]),
         supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id)
@@ -196,10 +286,10 @@ export function AppProvider({ children }) {
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
     if (!tenant) return;
-    
+
     const tenantUpdates = { isActive: false, checkOutDate: new Date().toISOString().split('T')[0] };
     const room = currentRooms.find(r => r.id === tenant.roomId);
-    
+
     let roomUpdates = null;
     if (room) {
       const newOccupants = Math.max(0, (room.currentOccupants || 0) - 1);
@@ -225,7 +315,6 @@ export function AppProvider({ children }) {
     }
   }, [data.tenants, currentRooms]);
 
-  // Payment CRUD
   const addPayment = useCallback(async (payment) => {
     const newPayment = { ...payment, id: `pay-${Date.now()}`, hostelId: activeHostelId };
     try {
@@ -270,7 +359,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Hostel Profile
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
       const { error } = await supabase.from('hostels').update(toSnakeCase(updates)).eq('id', hostelId);
@@ -286,7 +374,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Staff CRUD
   const addStaff = useCallback(async (staffMember) => {
     const newStaff = { ...staffMember, id: `staff-${Date.now()}`, hostelId: activeHostelId };
     try {
@@ -327,7 +414,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  // Stats
   const getStats = useCallback(() => {
     const occupied = currentRooms.filter(r => r.status === 'occupied').length;
     const available = currentRooms.filter(r => r.status === 'available').length;
@@ -351,17 +437,9 @@ export function AppProvider({ children }) {
     addTenant, updateTenant, checkoutTenant,
     addPayment, updatePayment, recordPayment,
     updateHostel, getStats, hostels: data.hostels,
-    // Auth
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
-    // Staff
     addStaff, updateStaff, deleteStaff,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
-}
-
-export function useApp() {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used within AppProvider');
-  return ctx;
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import StatCard from '../../components/StatCard';

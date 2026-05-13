@@ -1,24 +1,24 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
-import { Building2, Lock, Eye, EyeOff, ArrowLeft, Shield } from 'lucide-react';
+import { Building2, Lock, Eye, EyeOff, ArrowLeft, Shield, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useApp } from '../../hooks/useApp';
 import '../../styles/owner.css';
 
 export default function OwnerLogin() {
-  const { hostels, ownerLogin, isOwnerLoggedIn, loading: contextLoading } = useApp();
+  const { ownerLogin, isOwnerLoggedIn, loading: contextLoading } = useApp();
   const navigate = useNavigate();
-  const [selectedHostel, setSelectedHostel] = useState('');
-  const [pin, setPin] = useState('');
-  const [showPin, setShowPin] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If already logged in, redirect
-  if (isOwnerLoggedIn && !contextLoading) {
-    navigate('/owner/dashboard', { replace: true });
-    return null;
-  }
+  useEffect(() => {
+    if (isOwnerLoggedIn && !contextLoading) {
+      navigate('/owner/dashboard', { replace: true });
+    }
+  }, [contextLoading, isOwnerLoggedIn, navigate]);
 
   if (contextLoading) {
     return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
@@ -27,22 +27,18 @@ export default function OwnerLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    if (!selectedHostel) {
-      setError('Please select your hostel');
+
+    if (!email.trim()) {
+      setError('Please enter your owner email');
       return;
     }
-    if (!pin) {
-      setError('Please enter your PIN');
+    if (!password) {
+      setError('Please enter your password');
       return;
     }
 
     setLoading(true);
-    
-    // Simulate a slight delay for realism
-    await new Promise(r => setTimeout(r, 600));
-
-    const result = ownerLogin(selectedHostel, pin);
+    const result = await ownerLogin(email.trim(), password);
     setLoading(false);
 
     if (result.success) {
@@ -56,7 +52,6 @@ export default function OwnerLogin() {
 
   return (
     <div className="owner-login-page">
-      {/* Animated background */}
       <div className="login-bg-shapes">
         <div className="login-shape shape-1"></div>
         <div className="login-shape shape-2"></div>
@@ -64,13 +59,11 @@ export default function OwnerLogin() {
       </div>
 
       <div className="login-container">
-        {/* Back to home */}
         <button className="login-back" onClick={() => navigate('/')}>
           <ArrowLeft size={18} /> Back to Home
         </button>
 
         <div className="login-card">
-          {/* Logo */}
           <div className="login-logo">
             <div className="login-logo-icon">
               <Building2 size={28} />
@@ -79,66 +72,57 @@ export default function OwnerLogin() {
             <p>Owner Dashboard</p>
           </div>
 
-          {/* Security badge */}
           <div className="login-security-badge">
             <Shield size={14} />
-            <span>Secure Owner Access</span>
+            <span>Supabase Auth Protected</span>
           </div>
 
           <form onSubmit={handleSubmit} className="login-form">
-            {/* Hostel Selection */}
             <div className="login-field">
-              <label>Select Your Hostel</label>
-              <div className="login-select-wrapper">
-                <Building2 size={18} className="login-field-icon" />
-                <select
-                  value={selectedHostel}
-                  onChange={(e) => { setSelectedHostel(e.target.value); setError(''); }}
+              <label>Owner Email</label>
+              <div className="login-input-wrapper">
+                <Mail size={18} className="login-field-icon" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                  placeholder="owner@example.com"
                   className="login-input"
-                >
-                  <option value="">Choose your hostel...</option>
-                  {hostels.map(h => (
-                    <option key={h.id} value={h.id}>
-                      {h.name} ({h.type})
-                    </option>
-                  ))}
-                </select>
+                  autoComplete="email"
+                />
               </div>
             </div>
 
-            {/* PIN Entry */}
             <div className="login-field">
-              <label>Enter PIN</label>
+              <label>Password</label>
               <div className="login-input-wrapper">
                 <Lock size={18} className="login-field-icon" />
                 <input
-                  type={showPin ? 'text' : 'password'}
-                  value={pin}
-                  onChange={(e) => { setPin(e.target.value); setError(''); }}
-                  placeholder="Enter your 4-digit PIN"
-                  maxLength={4}
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  placeholder="Enter your password"
                   className="login-input"
-                  autoComplete="off"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   className="login-eye-btn"
-                  onClick={() => setShowPin(!showPin)}
+                  onClick={() => setShowPassword(!showPassword)}
                   tabIndex={-1}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div className="login-error">
                 {error}
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               className={`login-submit ${loading ? 'loading' : ''}`}
@@ -155,20 +139,8 @@ export default function OwnerLogin() {
             </button>
           </form>
 
-          {/* Demo hint */}
           <div className="login-hint">
-            <p>Demo PINs for testing:</p>
-            <div className="login-hint-pins">
-              {hostels.map(h => (
-                <button
-                  key={h.id}
-                  className="login-hint-chip"
-                  onClick={() => { setSelectedHostel(h.id); setPin(h.pin); }}
-                >
-                  {h.name.split(' ').slice(0, 2).join(' ')} → <strong>{h.pin}</strong>
-                </button>
-              ))}
-            </div>
+            <p>Create the owner email/password in Supabase Auth, then map that user to the hostel using the SQL setup file.</p>
           </div>
         </div>
       </div>

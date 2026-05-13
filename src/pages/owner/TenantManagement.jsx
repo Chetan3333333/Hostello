@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
-import { Plus, UserMinus, Eye, Users } from 'lucide-react';
+import { Plus, UserMinus, Eye } from 'lucide-react';
 
 export default function TenantManagement() {
   const { currentTenants, currentRooms, addTenant, checkoutTenant } = useApp();

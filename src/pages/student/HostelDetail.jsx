@@ -1,5 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import { Building2, MapPin, Star, Phone, MessageCircle, Mail, ArrowLeft, Shield, Check } from 'lucide-react';
 import { amenityLabels, roomTypeLabels } from '../../data/mockData';
 import '../../styles/student.css';

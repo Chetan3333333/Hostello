@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useApp } from '../../context/AppContext';
+import { useApp } from '../../hooks/useApp';
 import Modal from '../../components/Modal';
-import { Plus, Edit3, Trash2, BedDouble } from 'lucide-react';
+import { Plus, Trash2, BedDouble } from 'lucide-react';
 import { roomTypeLabels } from '../../data/mockData';
 
 export default function RoomManagement() {
