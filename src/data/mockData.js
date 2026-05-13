@@ -5,7 +5,6 @@ export const hostelsData = [
     id: 'h1',
     name: 'Sri Sai Boys Hostel',
     type: 'boys',
-    pin: '1111',
     address: 'Plot 45, Maisammaguda, Dhulapally, Secunderabad - 500100',
     phone: '9876543210',
     whatsapp: '9876543210',
@@ -49,10 +48,10 @@ function generateRooms(hostel) {
         price: hostel.pricing[type],
         status: status,
         capacity: capacity,
-        currentOccupants: status === 'occupied' ? Math.floor(Math.random() * capacity) + 1 : 0,
+        currentOccupants: status === 'occupied' ? ((floor + r) % capacity) + 1 : 0,
         amenities: ['beds', 'tables', 'chairs', 'fan', 'cupboard'],
         hasAttachedBath: false,
-        hasAC: Math.random() > 0.7,
+        hasAC: (floor + r) % 4 === 0,
       });
       roomNum++;
     }
@@ -74,22 +73,22 @@ function generateTenants(rooms, hostelId) {
     for (let o = 0; o < room.currentOccupants; o++) {
       const fn = studentFirstNames[(idx * 3 + o) % studentFirstNames.length];
       const ln = studentLastNames[(idx * 2 + o) % studentLastNames.length];
-      const checkInMonth = Math.floor(Math.random() * 6);
-      const checkIn = new Date(2025, 5 + checkInMonth, Math.floor(Math.random() * 28) + 1);
+      const checkInMonth = (idx + o) % 6;
+      const checkIn = new Date(2025, 5 + checkInMonth, ((idx + o) % 28) + 1);
       tenants.push({
         id: `t-${hostelId}-${idx}-${o}`,
         hostelId: hostelId,
         roomId: room.id,
         roomNumber: room.number,
         name: `${fn} ${ln}`,
-        phone: `9${Math.floor(100000000 + Math.random() * 900000000)}`,
-        email: `${fn.toLowerCase()}.${ln.toLowerCase()}${Math.floor(Math.random()*99)}@gmail.com`,
+        phone: `9${String(100000000 + idx * 37 + o).padStart(9, '0')}`,
+        email: `${fn.toLowerCase()}.${ln.toLowerCase()}${String(idx + o).padStart(2, '0')}@gmail.com`,
         college: colleges[idx % colleges.length],
         year: years[o % years.length],
         parentName: `${studentFirstNames[(idx + 5) % studentFirstNames.length]} ${ln}`,
-        parentPhone: `9${Math.floor(100000000 + Math.random() * 900000000)}`,
+        parentPhone: `9${String(200000000 + idx * 41 + o).padStart(9, '0')}`,
         idProof: 'Aadhar Card',
-        idNumber: `${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`,
+        idNumber: `${1000 + idx} ${2000 + o} ${3000 + idx + o}`,
         rentAmount: room.price,
         securityDeposit: room.price,
         checkInDate: checkIn.toISOString().split('T')[0],
@@ -112,9 +111,9 @@ function generatePayments(tenants, hostelId) {
     const startMonth = Math.max(0, months.findIndex(m => m >= tenant.checkInDate.substring(0, 7)));
     
     for (let m = startMonth; m < months.length; m++) {
-      const isPaid = m < months.length - 1 ? Math.random() > 0.15 : Math.random() > 0.4;
+      const isPaid = m < months.length - 1 ? (tIdx + m) % 7 !== 0 : tIdx % 3 !== 0;
       const isOverdue = !isPaid && m < months.length - 1;
-      const paidDate = isPaid ? `${months[m]}-${String(Math.floor(Math.random() * 5) + 1).padStart(2, '0')}` : null;
+      const paidDate = isPaid ? `${months[m]}-${String(((tIdx + m) % 5) + 1).padStart(2, '0')}` : null;
       
       payments.push({
         id: `pay-${hostelId}-${tIdx}-${m}`,
@@ -153,18 +152,18 @@ function generateStaff(hostelId) {
 }
 
 // Build complete dataset
-export function getInitialData() {
-  const existing = localStorage.getItem('hostello_data');
+export function getInitialData({ persist = true } = {}) {
+  const storage = typeof localStorage === 'undefined' ? null : localStorage;
+  const existing = persist ? storage?.getItem('hostello_data') : null;
   if (existing) {
     try {
       const parsed = JSON.parse(existing);
-      // Check if data has the new single-hostel structure
-      if (parsed.staff && parsed.hostels?.length === 1 && parsed.hostels[0]?.pin && !parsed.chats) {
+      // Check if data has the current single-hostel structure
+      if (parsed.staff && parsed.hostels?.length === 1 && !parsed.hostels[0]?.pin && !parsed.chats) {
         return parsed;
       }
-      // Old data format or multi-hostel, regenerate
       console.log('Regenerating data for single-hostel mode...');
-    } catch (e) {
+    } catch {
       console.error('Failed to parse stored data, regenerating...');
     }
   }
@@ -185,7 +184,9 @@ export function getInitialData() {
     ownerAuth: null,
   };
   
-  localStorage.setItem('hostello_data', JSON.stringify(data));
+  if (persist) {
+    storage?.setItem('hostello_data', JSON.stringify(data));
+  }
   return data;
 }
 

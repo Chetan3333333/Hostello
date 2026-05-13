@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Building2, GraduationCap, BarChart3, Search, ArrowRight, Shield, Users, CreditCard, BedDouble, Star, TrendingUp, Smartphone } from 'lucide-react';
+import { Building2, GraduationCap, BarChart3, Search, ArrowRight, Shield, Users, CreditCard, BedDouble, Star, Smartphone } from 'lucide-react';
 import '../styles/landing.css';
 
 export default function LandingPage() {
@@ -111,18 +111,18 @@ export default function LandingPage() {
           {/* Stats */}
           <div className="role-stats">
             <div className="role-stat">
-              <span className="role-stat-value">4+</span>
-              <span className="role-stat-label">Hostels Listed</span>
+              <span className="role-stat-value">1</span>
+              <span className="role-stat-label">Verified Hostel</span>
             </div>
             <div className="role-stat-divider"></div>
             <div className="role-stat">
-              <span className="role-stat-value">75+</span>
+              <span className="role-stat-value">20</span>
               <span className="role-stat-label">Rooms</span>
             </div>
             <div className="role-stat-divider"></div>
             <div className="role-stat">
-              <span className="role-stat-value">50+</span>
-              <span className="role-stat-label">Happy Students</span>
+              <span className="role-stat-value">Live</span>
+              <span className="role-stat-label">Owner Dashboard</span>
             </div>
             <div className="role-stat-divider"></div>
             <div className="role-stat">
