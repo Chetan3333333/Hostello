@@ -6,7 +6,7 @@
 -- After the owner user exists, replace the UUID below and run this mapping:
 --
 -- insert into public.owner_profiles (user_id, hostel_id)
--- values ('PASTE_OWNER_AUTH_USER_UUID_HERE', 'h1')
+-- values ('82d1a233-c959-4a99-ad6b-6789d9f2d103', 'h1')
 -- on conflict (user_id) do update set hostel_id = excluded.hostel_id;
 
 create table if not exists public.owner_profiles (

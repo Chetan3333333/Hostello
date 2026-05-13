@@ -10,6 +10,7 @@ const toSnakeCase = (obj) => {
     if (key === 'currentHostelId') continue;
     if (key === 'ownerAuth') continue;
     if (key === 'pin') continue;
+    if (key === 'images') continue;
 
     if (key === 'hasAC') {
       newObj.has_ac = obj[key];
