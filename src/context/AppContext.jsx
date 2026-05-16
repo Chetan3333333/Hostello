@@ -248,7 +248,7 @@ export function AppProvider({ children }) {
     if (!room) return;
 
     const newOccupants = (room.currentOccupants || 0) + 1;
-    const roomUpdates = { currentOccupants: newOccupants, status: 'occupied' };
+    const roomUpdates = { currentOccupants: newOccupants, status: newOccupants >= room.capacity ? 'occupied' : 'available' };
 
     try {
       await Promise.all([
@@ -293,7 +293,7 @@ export function AppProvider({ children }) {
     let roomUpdates = null;
     if (room) {
       const newOccupants = Math.max(0, (room.currentOccupants || 0) - 1);
-      roomUpdates = { currentOccupants: newOccupants, status: newOccupants === 0 ? 'available' : 'occupied' };
+      roomUpdates = { currentOccupants: newOccupants, status: newOccupants >= room.capacity ? 'occupied' : 'available' };
     }
 
     try {
@@ -375,7 +375,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const addStaff = useCallback(async (staffMember) => {
-    const newStaff = { ...staffMember, id: `staff-${Date.now()}`, hostelId: activeHostelId };
+    const newStaff = { ...staffMember, balance: 0, id: `staff-${Date.now()}`, hostelId: activeHostelId };
     try {
       const { error } = await supabase.from('staff').insert([toSnakeCase(newStaff)]);
       if (error) throw error;
@@ -414,6 +414,42 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  const addStaffSalary = useCallback(async (staffId, amount) => {
+    const staffMember = data.staff.find(s => s.id === staffId);
+    if (!staffMember) return;
+    const newBalance = (Number(staffMember.balance) || 0) + Number(amount);
+    try {
+      const { error } = await supabase.from('staff').update({ balance: newBalance }).eq('id', staffId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: newBalance } : s)
+      }));
+      toast.success('Salary added to balance');
+    } catch (err) {
+      toast.error('Failed to add salary');
+      console.error(err);
+    }
+  }, [data.staff]);
+
+  const payStaffCash = useCallback(async (staffId, amount) => {
+    const staffMember = data.staff.find(s => s.id === staffId);
+    if (!staffMember) return;
+    const newBalance = (Number(staffMember.balance) || 0) - Number(amount);
+    try {
+      const { error } = await supabase.from('staff').update({ balance: newBalance }).eq('id', staffId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: newBalance } : s)
+      }));
+      toast.success('Cash payment recorded');
+    } catch (err) {
+      toast.error('Failed to record payment');
+      console.error(err);
+    }
+  }, [data.staff]);
+
   const getStats = useCallback(() => {
     const occupied = currentRooms.filter(r => r.status === 'occupied').length;
     const available = currentRooms.filter(r => r.status === 'available').length;
@@ -438,7 +474,7 @@ export function AppProvider({ children }) {
     addPayment, updatePayment, recordPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
-    addStaff, updateStaff, deleteStaff,
+    addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -3,14 +3,14 @@ import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import StatCard from '../../components/StatCard';
-import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle } from 'lucide-react';
+import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
 
 export default function PaymentTracking() {
   const { currentPayments, currentTenants, addPayment, recordPayment } = useApp();
   const [monthFilter, setMonthFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ tenantId: '', amount: '', month: '', method: 'UPI', receiptNote: '' });
+  const [form, setForm] = useState({ tenantId: '', amount: '', month: '', method: 'UPI', receiptNote: '', status: 'paid' });
 
   const months = [...new Set(currentPayments.map(p => p.month))].sort().reverse();
 
@@ -42,9 +42,9 @@ export default function PaymentTracking() {
       amount: Number(form.amount) || tenant.rentAmount,
       month: form.month,
       dueDate: `${form.month}-05`,
-      paidDate: new Date().toISOString().split('T')[0],
-      status: 'paid',
-      method: form.method,
+      paidDate: form.status === 'paid' ? new Date().toISOString().split('T')[0] : null,
+      status: form.status,
+      method: form.status === 'paid' ? form.method : null,
       receiptNote: form.receiptNote || `Rent for ${form.month}`,
     });
     setModalOpen(false);
@@ -69,9 +69,21 @@ export default function PaymentTracking() {
     {
       header: 'Action', sortable: false,
       render: row => row.status !== 'paid' ? (
-        <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
-          <CheckCircle size={14} /> Mark Paid
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
+            <CheckCircle size={14} /> Mark Paid
+          </button>
+          <a 
+            href={`https://wa.me/91${currentTenants.find(t => t.id === row.tenantId)?.phone || ''}?text=${encodeURIComponent(`Hi ${row.tenantName}, your hostel rent of ₹${row.amount} for the month of ${row.month} is due. Please pay via UPI at the earliest.`)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MessageCircle size={14} /> Remind
+          </a>
+        </div>
       ) : null
     },
   ];
@@ -135,15 +147,25 @@ export default function PaymentTracking() {
           </div>
           <div className="form-row" style={{ marginTop: '12px' }}>
             <div className="form-group">
-              <label>Payment Method</label>
-              <select className="form-input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
-                <option>UPI</option><option>Cash</option><option>Bank Transfer</option><option>Cheque</option>
+              <label>Status *</label>
+              <select className="form-input" value={form.status} onChange={e => setForm({...form, status: e.target.value})} required>
+                <option value="paid">Paid</option>
+                <option value="pending">Pending</option>
+                <option value="overdue">Overdue</option>
               </select>
             </div>
-            <div className="form-group">
-              <label>Note</label>
-              <input className="form-input" value={form.receiptNote} onChange={e => setForm({...form, receiptNote: e.target.value})} placeholder="Optional receipt note" />
-            </div>
+            {form.status === 'paid' && (
+              <div className="form-group">
+                <label>Payment Method</label>
+                <select className="form-input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
+                  <option>UPI</option><option>Cash</option><option>Bank Transfer</option><option>Cheque</option>
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="form-group" style={{ marginTop: '12px' }}>
+            <label>Note</label>
+            <input className="form-input" value={form.receiptNote} onChange={e => setForm({...form, receiptNote: e.target.value})} placeholder="Optional receipt note" />
           </div>
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>

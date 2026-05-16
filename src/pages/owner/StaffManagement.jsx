@@ -8,7 +8,7 @@ import { Plus, Edit3, Trash2, Users, IndianRupee, UserCheck, UserX, Clock } from
 import toast from 'react-hot-toast';
 
 export default function StaffManagement() {
-  const { currentStaff, addStaff, updateStaff, deleteStaff } = useApp();
+  const { currentStaff, addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [roleFilter, setRoleFilter] = useState('all');
@@ -73,6 +73,21 @@ export default function StaffManagement() {
     toast.success(`${staff.name} marked as ${staffStatusLabels[newStatus].label}`);
   };
 
+  const handleAddSalary = (staff) => {
+    const amount = window.prompt(`Add monthly salary to balance for ${staff.name}?\nEnter amount to add (Default is base salary):`, staff.salary);
+    if (amount !== null && amount !== '' && !isNaN(Number(amount))) {
+      addStaffSalary(staff.id, Number(amount));
+    }
+  };
+
+  const handlePayCash = (staff) => {
+    const defaultAmount = Math.max(0, staff.balance || 0);
+    const amount = window.prompt(`Record cash handed to ${staff.name} (Advance or Settlement):\nAmount to deduct from balance:`, defaultAmount || '');
+    if (amount !== null && amount !== '' && !isNaN(Number(amount))) {
+      payStaffCash(staff.id, Number(amount));
+    }
+  };
+
   const columns = [
     {
       header: 'Name', accessor: 'name',
@@ -91,6 +106,17 @@ export default function StaffManagement() {
     {
       header: 'Monthly Salary', accessor: 'salary',
       render: row => <span style={{ fontWeight: 600, color: 'var(--success)' }}>₹{(row.salary || 0).toLocaleString()}/mo</span>
+    },
+    {
+      header: 'Balance', accessor: 'balance',
+      render: row => {
+        const bal = row.balance || 0;
+        return (
+          <span className={`badge badge-${bal > 0 ? 'warning' : bal < 0 ? 'primary' : 'ghost'}`}>
+            {bal > 0 ? `Pending ₹${bal.toLocaleString()}` : bal < 0 ? `Adv ₹${Math.abs(bal).toLocaleString()}` : 'Settled'}
+          </span>
+        );
+      }
     },
     { header: 'Joined', accessor: 'joinDate' },
     {
@@ -115,6 +141,12 @@ export default function StaffManagement() {
       header: 'Actions', sortable: false,
       render: row => (
         <div style={{ display: 'flex', gap: '6px' }}>
+          <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleAddSalary(row); }} title="Add Monthly Salary">
+            + Sal
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); handlePayCash(row); }} title="Record Cash Paid">
+            - Pay
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); openEditModal(row); }} title="Edit">
             <Edit3 size={16} />
           </button>
