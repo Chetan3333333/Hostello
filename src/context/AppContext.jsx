@@ -359,6 +359,22 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  const revertPayment = useCallback(async (paymentId) => {
+    const updates = { status: 'pending', paidDate: null, method: null };
+    try {
+      const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
+      }));
+      toast.success('Payment reverted to pending');
+    } catch (err) {
+      toast.error('Failed to revert payment');
+      console.error(err);
+    }
+  }, []);
+
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
       const { error } = await supabase.from('hostels').update(toSnakeCase(updates)).eq('id', hostelId);
@@ -471,7 +487,7 @@ export function AppProvider({ children }) {
     data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant,
-    addPayment, updatePayment, recordPayment,
+    addPayment, updatePayment, recordPayment, revertPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
     addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,

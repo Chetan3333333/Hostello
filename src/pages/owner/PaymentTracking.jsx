@@ -6,7 +6,7 @@ import StatCard from '../../components/StatCard';
 import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment } = useApp();
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment } = useApp();
   const [monthFilter, setMonthFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -28,6 +28,12 @@ export default function PaymentTracking() {
   const handleRecordPayment = (payment) => {
     if (confirm(`Mark ₹${payment.amount.toLocaleString()} from ${payment.tenantName} as paid?`)) {
       recordPayment(payment.id);
+    }
+  };
+
+  const handleRevertPayment = (payment) => {
+    if (confirm(`Revert this payment for ${payment.tenantName} back to Pending?`)) {
+      revertPayment(payment.id);
     }
   };
 
@@ -84,7 +90,13 @@ export default function PaymentTracking() {
             <MessageCircle size={14} /> Remind
           </a>
         </div>
-      ) : null
+      ) : (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRevertPayment(row); }} title="Undo payment">
+            Undo
+          </button>
+        </div>
+      )
     },
   ];
 
