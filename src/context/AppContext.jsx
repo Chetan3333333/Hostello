@@ -344,7 +344,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const recordPayment = useCallback(async (paymentId) => {
-    const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0], method: 'Cash' };
+    const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0] };
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
       if (error) throw error;
@@ -360,7 +360,7 @@ export function AppProvider({ children }) {
   }, []);
 
   const revertPayment = useCallback(async (paymentId) => {
-    const updates = { status: 'pending', paidDate: null, method: null };
+    const updates = { status: 'pending', paidDate: null };
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
       if (error) throw error;

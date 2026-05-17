@@ -10,7 +10,7 @@ export default function PaymentTracking() {
   const [monthFilter, setMonthFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ tenantId: '', amount: '', month: '', method: 'UPI', receiptNote: '', status: 'paid' });
+  const [form, setForm] = useState({ tenantId: '', amount: '', month: '', receiptNote: '', status: 'paid' });
 
   const months = [...new Set(currentPayments.map(p => p.month))].sort().reverse();
 
@@ -50,7 +50,6 @@ export default function PaymentTracking() {
       dueDate: `${form.month}-05`,
       paidDate: form.status === 'paid' ? new Date().toISOString().split('T')[0] : null,
       status: form.status,
-      method: form.status === 'paid' ? form.method : null,
       receiptNote: form.receiptNote || `Rent for ${form.month}`,
     });
     setModalOpen(false);
@@ -63,7 +62,6 @@ export default function PaymentTracking() {
     { header: 'Month', accessor: 'month' },
     { header: 'Due Date', accessor: 'dueDate' },
     { header: 'Paid Date', accessor: 'paidDate', render: row => row.paidDate || '—' },
-    { header: 'Method', accessor: 'method', render: row => row.method || '—' },
     {
       header: 'Status', accessor: 'status',
       render: row => (
@@ -166,14 +164,6 @@ export default function PaymentTracking() {
                 <option value="overdue">Overdue</option>
               </select>
             </div>
-            {form.status === 'paid' && (
-              <div className="form-group">
-                <label>Payment Method</label>
-                <select className="form-input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
-                  <option>UPI</option><option>Cash</option><option>Bank Transfer</option><option>Cheque</option>
-                </select>
-              </div>
-            )}
           </div>
           <div className="form-group" style={{ marginTop: '12px' }}>
             <label>Note</label>
