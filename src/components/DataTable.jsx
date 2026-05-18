@@ -1,11 +1,13 @@
 import { Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 export default function DataTable({ columns, data, searchable = true, searchPlaceholder = 'Search...', onRowClick, emptyMessage = 'No data found', pageSize = 10 }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
+
+  useEffect(() => { setPage(0); }, [data]);
 
   const filtered = useMemo(() => {
     let result = data;
