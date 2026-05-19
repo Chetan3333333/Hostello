@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
-import { Plus, UserMinus, Eye, Edit2 } from 'lucide-react';
+import { Plus, UserMinus, Eye, Edit2, ArrowRightLeft } from 'lucide-react';
 
 export default function TenantManagement() {
-  const { currentTenants, currentRooms, currentPayments, addTenant, updateTenant, checkoutTenant } = useApp();
+  const { currentTenants, currentRooms, currentPayments, addTenant, updateTenant, checkoutTenant, swapTenants } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [viewTenant, setViewTenant] = useState(null);
   const [checkoutData, setCheckoutData] = useState(null);
   const [editingTenantId, setEditingTenantId] = useState(null);
+  const [swapModalOpen, setSwapModalOpen] = useState(false);
+  const [swapForm, setSwapForm] = useState({ tenant1: '', tenant2: '' });
   const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
 
   const availableRooms = currentRooms.filter(r => r.status === 'available' || (r.status === 'occupied' && r.currentOccupants < r.capacity) || (editingTenantId && r.id === form.roomId));
@@ -17,6 +19,13 @@ export default function TenantManagement() {
   const handleSubmit = (e) => {
     e.preventDefault();
     
+    // Validate phone number format (exactly 10 digits)
+    const phoneRegex = /^[0-9]{10}$/;
+    if (!phoneRegex.test(form.phone)) {
+      alert('Please enter a valid 10-digit phone number.');
+      return;
+    }
+
     // Prevent duplicate entries based on phone number
     const duplicate = currentTenants.find(t => t.phone === form.phone && t.isActive !== false && t.id !== editingTenantId);
     if (duplicate) {
@@ -111,11 +120,25 @@ export default function TenantManagement() {
     setModalOpen(true);
   };
 
+  const handleSwap = (e) => {
+    e.preventDefault();
+    if (swapForm.tenant1 === swapForm.tenant2) {
+      alert("Please select two different tenants to swap.");
+      return;
+    }
+    swapTenants(swapForm.tenant1, swapForm.tenant2);
+    setSwapModalOpen(false);
+    setSwapForm({ tenant1: '', tenant2: '' });
+  };
+
   return (
     <div className="animate-fade">
       <div className="page-header">
         <h1>Tenant Management</h1>
-        <div className="page-header-actions">
+        <div className="page-header-actions" style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-outline" onClick={() => { setSwapForm({ tenant1: '', tenant2: '' }); setSwapModalOpen(true); }}>
+            <ArrowRightLeft size={18} /> Swap Rooms
+          </button>
           <button className="btn btn-primary" onClick={openAddModal}>
             <Plus size={18} /> Add Tenant
           </button>
@@ -298,6 +321,35 @@ export default function TenantManagement() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Swap Rooms Modal */}
+      <Modal isOpen={swapModalOpen} onClose={() => setSwapModalOpen(false)} title="Swap Tenant Rooms" size="md">
+        <form onSubmit={handleSwap}>
+          <div style={{ marginBottom: '16px', color: 'var(--dark-text-secondary)', fontSize: '0.9rem' }}>
+            Select two tenants to swap their rooms. Their profiles, rent amounts, and any unpaid bills will be safely exchanged.
+          </div>
+          <div className="form-group" style={{ marginBottom: '16px' }}>
+            <label>Select First Tenant *</label>
+            <select className="form-input" value={swapForm.tenant1} onChange={e => setSwapForm({...swapForm, tenant1: e.target.value})} required>
+              <option value="">Choose tenant 1</option>
+              {currentTenants.map(t => <option key={t.id} value={t.id} disabled={t.id === swapForm.tenant2}>{t.name} (Room {t.roomNumber})</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: '24px' }}>
+            <label>Select Second Tenant *</label>
+            <select className="form-input" value={swapForm.tenant2} onChange={e => setSwapForm({...swapForm, tenant2: e.target.value})} required>
+              <option value="">Choose tenant 2</option>
+              {currentTenants.map(t => <option key={t.id} value={t.id} disabled={t.id === swapForm.tenant1}>{t.name} (Room {t.roomNumber})</option>)}
+            </select>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn-ghost" onClick={() => setSwapModalOpen(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={!swapForm.tenant1 || !swapForm.tenant2}>
+              <ArrowRightLeft size={16} /> Confirm Swap
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

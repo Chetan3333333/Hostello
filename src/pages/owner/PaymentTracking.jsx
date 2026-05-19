@@ -11,7 +11,8 @@ export default function PaymentTracking() {
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState({ tenantId: '', amount: '', month: '', receiptNote: '', status: 'paid' });
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [form, setForm] = useState({ tenantId: '', amount: '', month: currentMonthStr, receiptNote: '', status: 'pending' });
 
   const months = [...new Set(currentPayments.map(p => p.month))].sort().reverse();
 
@@ -27,21 +28,33 @@ export default function PaymentTracking() {
   const totalOverdue = filtered.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
 
   const handleRecordPayment = (payment) => {
-    if (confirm(`Mark ₹${payment.amount.toLocaleString()} from ${payment.tenantName} as paid?`)) {
-      recordPayment(payment.id);
-    }
+    setConfirmDialog({
+      title: 'Record Payment',
+      message: `Mark ₹${payment.amount.toLocaleString()} from ${payment.tenantName} as paid?`,
+      type: 'success',
+      confirmText: 'Mark Paid',
+      onConfirm: () => {
+        recordPayment(payment.id);
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleRevertPayment = (payment) => {
-    if (confirm(`Revert this payment for ${payment.tenantName} back to Pending?`)) {
-      revertPayment(payment.id);
-    }
+    revertPayment(payment.id);
   };
 
   const handleDeletePayment = (payment) => {
-    if (confirm(`WARNING: Are you sure you want to permanently delete this payment record for ${payment.tenantName}? This action cannot be undone.`)) {
-      deletePayment(payment.id);
-    }
+    setConfirmDialog({
+      title: 'Delete Payment',
+      message: `WARNING: Are you sure you want to permanently delete this payment record for ${payment.tenantName}? This action cannot be undone.`,
+      type: 'danger',
+      confirmText: 'Delete Permanently',
+      onConfirm: () => {
+        deletePayment(payment.id);
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleAddPayment = (e) => {
@@ -64,7 +77,7 @@ export default function PaymentTracking() {
       status: form.status,
       receiptNote: form.receiptNote || `Rent for ${form.month}`,
     });
-    setForm({ tenantId: '', amount: '', month: '', receiptNote: '', status: 'paid' });
+    setForm({ tenantId: '', amount: '', month: currentMonthStr, receiptNote: '', status: 'pending' });
     setModalOpen(false);
   };
 
@@ -190,6 +203,23 @@ export default function PaymentTracking() {
             <button type="submit" className="btn btn-success">Record Payment</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirmation Dialog */}
+      <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || "Confirm Action"} size="sm">
+        {confirmDialog && (
+          <div>
+            <p style={{ marginBottom: '24px', color: 'var(--dark-text-secondary)', fontSize: '1rem', lineHeight: 1.5 }}>
+              {confirmDialog.message}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button className={`btn btn-${confirmDialog.type}`} onClick={confirmDialog.onConfirm}>
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

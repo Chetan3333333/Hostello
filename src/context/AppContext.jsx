@@ -346,6 +346,54 @@ export function AppProvider({ children }) {
     }
   }, [data.tenants, currentRooms]);
 
+  const swapTenants = useCallback(async (tenantAId, tenantBId) => {
+    const tenantA = data.tenants.find(t => t.id === tenantAId);
+    const tenantB = data.tenants.find(t => t.id === tenantBId);
+    
+    if (!tenantA || !tenantB) return;
+
+    // The logic: Tenant A gets B's room and rent. Tenant B gets A's room and rent.
+    const aUpdates = { roomId: tenantB.roomId, roomNumber: tenantB.roomNumber, rentAmount: tenantB.rentAmount };
+    const bUpdates = { roomId: tenantA.roomId, roomNumber: tenantA.roomNumber, rentAmount: tenantA.rentAmount };
+    
+    // Sync payment updates (Pending/Overdue only)
+    const aPaymentUpdates = { room_number: tenantB.roomNumber, amount: tenantB.rentAmount };
+    const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
+
+    try {
+      const promises = [
+        supabase.from('tenants').update(toSnakeCase(aUpdates)).eq('id', tenantA.id),
+        supabase.from('tenants').update(toSnakeCase(bUpdates)).eq('id', tenantB.id),
+        supabase.from('payments').update(aPaymentUpdates).eq('tenant_id', tenantA.id).in('status', ['pending', 'overdue']),
+        supabase.from('payments').update(bPaymentUpdates).eq('tenant_id', tenantB.id).in('status', ['pending', 'overdue'])
+      ];
+
+      await Promise.all(promises);
+
+      setData(prev => {
+        const nextTenants = prev.tenants.map(t => {
+          if (t.id === tenantA.id) return { ...t, ...aUpdates };
+          if (t.id === tenantB.id) return { ...t, ...bUpdates };
+          return t;
+        });
+
+        const nextPayments = prev.payments.map(p => {
+          if (p.status !== 'paid') {
+            if (p.tenantId === tenantA.id) return { ...p, roomNumber: aUpdates.roomNumber, amount: aUpdates.rentAmount };
+            if (p.tenantId === tenantB.id) return { ...p, roomNumber: bUpdates.roomNumber, amount: bUpdates.rentAmount };
+          }
+          return p;
+        });
+
+        return { ...prev, tenants: nextTenants, payments: nextPayments };
+      });
+      toast.success('Rooms swapped successfully!');
+    } catch (err) {
+      toast.error('Failed to swap rooms');
+      console.error(err);
+    }
+  }, [data.tenants]);
+
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
     if (!tenant) return;
@@ -564,7 +612,7 @@ export function AppProvider({ children }) {
   const value = {
     data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
     addRoom, updateRoom, deleteRoom,
-    addTenant, updateTenant, checkoutTenant,
+    addTenant, updateTenant, checkoutTenant, swapTenants,
     addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,

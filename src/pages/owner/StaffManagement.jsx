@@ -11,6 +11,7 @@ export default function StaffManagement() {
   const { currentStaff, addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [roleFilter, setRoleFilter] = useState('all');
   const [form, setForm] = useState({
     name: '', role: 'mess_cook', phone: '', salary: '', joinDate: new Date().toISOString().split('T')[0], status: 'present'
@@ -50,6 +51,15 @@ export default function StaffManagement() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    if (form.phone) {
+      const phoneRegex = /^[0-9]{10}$/;
+      if (!phoneRegex.test(form.phone)) {
+        alert('Please enter a valid 10-digit phone number.');
+        return;
+      }
+    }
+
     const staffData = { ...form, salary: Number(form.salary) };
     if (editingStaff) {
       updateStaff(editingStaff.id, staffData);
@@ -62,10 +72,17 @@ export default function StaffManagement() {
   };
 
   const handleDelete = (staff) => {
-    if (confirm(`Remove ${staff.name} from staff?`)) {
-      deleteStaff(staff.id);
-      toast.success('Staff member removed');
-    }
+    setConfirmDialog({
+      title: 'Remove Staff',
+      message: `Remove ${staff.name} from staff?`,
+      type: 'danger',
+      confirmText: 'Remove',
+      onConfirm: () => {
+        deleteStaff(staff.id);
+        toast.success('Staff member removed');
+        setConfirmDialog(null);
+      }
+    });
   };
 
   const handleStatusChange = (staff, newStatus) => {
@@ -243,6 +260,23 @@ export default function StaffManagement() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirmation Dialog */}
+      <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || "Confirm Action"} size="sm">
+        {confirmDialog && (
+          <div>
+            <p style={{ marginBottom: '24px', color: 'var(--dark-text-secondary)', fontSize: '1rem', lineHeight: 1.5 }}>
+              {confirmDialog.message}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button className={`btn btn-${confirmDialog.type}`} onClick={confirmDialog.onConfirm}>
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -9,6 +9,7 @@ export default function RoomManagement() {
   const [filter, setFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [form, setForm] = useState({ number: '', floor: 1, type: '3_sharing', price: '', status: 'available', hasAttachedBath: false, hasAC: false });
 
   const filters = [
@@ -61,7 +62,16 @@ export default function RoomManagement() {
       alert('Cannot delete an occupied room. Please check out tenants first.');
       return;
     }
-    if (confirm(`Delete Room ${room.number}?`)) deleteRoom(room.id);
+    setConfirmDialog({
+      title: 'Delete Room',
+      message: `Delete Room ${room.number}?`,
+      type: 'danger',
+      confirmText: 'Delete',
+      onConfirm: () => {
+        deleteRoom(room.id);
+        setConfirmDialog(null);
+      }
+    });
   };
 
   return (
@@ -171,6 +181,23 @@ export default function RoomManagement() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Confirmation Dialog */}
+      <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || "Confirm Action"} size="sm">
+        {confirmDialog && (
+          <div>
+            <p style={{ marginBottom: '24px', color: 'var(--dark-text-secondary)', fontSize: '1rem', lineHeight: 1.5 }}>
+              {confirmDialog.message}
+            </p>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button className={`btn btn-${confirmDialog.type}`} onClick={confirmDialog.onConfirm}>
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
