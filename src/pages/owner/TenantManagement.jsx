@@ -5,9 +5,10 @@ import Modal from '../../components/Modal';
 import { Plus, UserMinus, Eye } from 'lucide-react';
 
 export default function TenantManagement() {
-  const { currentTenants, currentRooms, addTenant, checkoutTenant } = useApp();
+  const { currentTenants, currentRooms, currentPayments, addTenant, checkoutTenant } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [viewTenant, setViewTenant] = useState(null);
+  const [checkoutData, setCheckoutData] = useState(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
 
   const availableRooms = currentRooms.filter(r => r.status === 'available' || (r.status === 'occupied' && r.currentOccupants < r.capacity));
@@ -26,10 +27,20 @@ export default function TenantManagement() {
   };
 
   const handleCheckout = (tenant) => {
-    if (confirm(`Check out ${tenant.name} from Room ${tenant.roomNumber}?`)) {
-      checkoutTenant(tenant.id);
+    setCheckoutData(tenant);
+  };
+
+  const confirmCheckout = () => {
+    if (checkoutData) {
+      checkoutTenant(checkoutData.id);
+      setCheckoutData(null);
     }
   };
+
+  const unpaidPayments = checkoutData ? currentPayments.filter(p => p.tenantId === checkoutData.id && p.status !== 'paid') : [];
+  const totalUnpaid = unpaidPayments.reduce((s, p) => s + p.amount, 0);
+  const deposit = checkoutData?.securityDeposit || 0;
+  const netBalance = deposit - totalUnpaid;
 
   const columns = [
     { header: 'Name', accessor: 'name', render: row => <span style={{ fontWeight: 600, color: 'var(--dark-text)' }}>{row.name}</span> },
@@ -195,6 +206,54 @@ export default function TenantManagement() {
               <button className="btn btn-danger" onClick={() => { handleCheckout(viewTenant); setViewTenant(null); }}>
                 <UserMinus size={16} /> Check Out
               </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Checkout Settlement Modal */}
+      <Modal isOpen={!!checkoutData} onClose={() => setCheckoutData(null)} title="Checkout Settlement" size="md">
+        {checkoutData && (
+          <div>
+            <div style={{ padding: '16px', backgroundColor: 'var(--dark-surface)', borderRadius: '8px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <span style={{ color: 'var(--dark-text-muted)' }}>Security Deposit Held:</span>
+                <span style={{ fontWeight: 600, color: 'var(--success)' }}>₹{deposit.toLocaleString()}</span>
+              </div>
+              
+              <div style={{ borderTop: '1px solid var(--dark-border)', paddingTop: '12px', marginBottom: '12px' }}>
+                <span style={{ color: 'var(--dark-text-muted)', display: 'block', marginBottom: '8px' }}>Unpaid Rent Breakdown:</span>
+                {unpaidPayments.length === 0 ? (
+                  <div style={{ color: 'var(--dark-text)', fontSize: '0.9rem' }}>No pending or overdue payments.</div>
+                ) : (
+                  unpaidPayments.map(p => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '4px' }}>
+                      <span style={{ color: 'var(--dark-text)' }}>- {p.month} <span style={{ color: p.status === 'overdue' ? 'var(--danger)' : 'var(--warning)', fontSize: '0.8rem' }}>({p.status})</span></span>
+                      <span style={{ color: 'var(--dark-text)' }}>₹{p.amount.toLocaleString()}</span>
+                    </div>
+                  ))
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--dark-text)' }}>Total Unpaid:</span>
+                  <span style={{ color: 'var(--danger)' }}>₹{totalUnpaid.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '2px solid var(--dark-border)', paddingTop: '12px', marginTop: '12px' }}>
+                <span style={{ display: 'block', color: 'var(--dark-text-muted)', fontSize: '0.8rem', marginBottom: '4px' }}>FINAL SETTLEMENT</span>
+                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: netBalance > 0 ? 'var(--success)' : netBalance < 0 ? 'var(--danger)' : 'var(--dark-text)' }}>
+                  {netBalance > 0 
+                    ? `You must refund ₹${netBalance.toLocaleString()} to the student.` 
+                    : netBalance < 0 
+                    ? `The student still owes you ₹${Math.abs(netBalance).toLocaleString()}.` 
+                    : `Accounts are settled. No money is owed.`}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setCheckoutData(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmCheckout}>Confirm Checkout</button>
             </div>
           </div>
         )}
