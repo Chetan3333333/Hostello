@@ -6,8 +6,9 @@ import StatCard from '../../components/StatCard';
 import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment } = useApp();
-  const [monthFilter, setMonthFilter] = useState('all');
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment } = useApp();
+  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ tenantId: '', amount: '', month: '', receiptNote: '', status: 'paid' });
@@ -23,7 +24,7 @@ export default function PaymentTracking() {
 
   const totalCollected = filtered.filter(p => p.status === 'paid').reduce((s, p) => s + p.amount, 0);
   const totalPending = filtered.filter(p => p.status === 'pending').reduce((s, p) => s + p.amount, 0);
-  const overdueCount = filtered.filter(p => p.status === 'overdue').length;
+  const totalOverdue = filtered.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
 
   const handleRecordPayment = (payment) => {
     if (confirm(`Mark ₹${payment.amount.toLocaleString()} from ${payment.tenantName} as paid?`)) {
@@ -37,21 +38,33 @@ export default function PaymentTracking() {
     }
   };
 
+  const handleDeletePayment = (payment) => {
+    if (confirm(`WARNING: Are you sure you want to permanently delete this payment record for ${payment.tenantName}? This action cannot be undone.`)) {
+      deletePayment(payment.id);
+    }
+  };
+
   const handleAddPayment = (e) => {
     e.preventDefault();
     const tenant = currentTenants.find(t => t.id === form.tenantId);
     if (!tenant) return;
+    const duplicate = currentPayments.find(p => p.tenantId === tenant.id && p.month === form.month);
+    if (duplicate) {
+      alert(`A payment record for ${tenant.name} for ${form.month} already exists!`);
+      return;
+    }
     addPayment({
       tenantId: tenant.id,
       tenantName: tenant.name,
       roomNumber: tenant.roomNumber,
       amount: Number(form.amount) || tenant.rentAmount,
       month: form.month,
-      dueDate: `${form.month}-05`,
+      dueDate: `${form.month}-10`,
       paidDate: form.status === 'paid' ? new Date().toISOString().split('T')[0] : null,
       status: form.status,
       receiptNote: form.receiptNote || `Rent for ${form.month}`,
     });
+    setForm({ tenantId: '', amount: '', month: '', receiptNote: '', status: 'paid' });
     setModalOpen(false);
   };
 
@@ -76,6 +89,9 @@ export default function PaymentTracking() {
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
             <CheckCircle size={14} /> Mark Paid
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDeletePayment(row); }} title="Delete payment">
+            Delete
           </button>
           <a 
             href={`https://wa.me/91${currentTenants.find(t => t.id === row.tenantId)?.phone || ''}?text=${encodeURIComponent(`Hi ${row.tenantName}, your hostel rent of ₹${row.amount} for the month of ${row.month} is due. Please pay via UPI at the earliest.`)}`}
@@ -112,7 +128,7 @@ export default function PaymentTracking() {
       <div className="stats-grid stagger-children">
         <StatCard icon={IndianRupee} label="Collected" value={`₹${totalCollected.toLocaleString()}`} color="success" />
         <StatCard icon={Clock} label="Pending" value={`₹${totalPending.toLocaleString()}`} color="warning" />
-        <StatCard icon={AlertTriangle} label="Overdue" value={overdueCount} color="danger" />
+        <StatCard icon={AlertTriangle} label="Overdue" value={`₹${totalOverdue.toLocaleString()}`} color="danger" />
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>

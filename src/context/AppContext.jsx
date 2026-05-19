@@ -375,6 +375,21 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  const deletePayment = useCallback(async (paymentId) => {
+    try {
+      const { error } = await supabase.from('payments').delete().eq('id', paymentId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        payments: prev.payments.filter(p => p.id !== paymentId)
+      }));
+      toast.success('Payment record deleted permanently');
+    } catch (err) {
+      toast.error('Failed to delete payment');
+      console.error(err);
+    }
+  }, []);
+
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
       const { error } = await supabase.from('hostels').update(toSnakeCase(updates)).eq('id', hostelId);
@@ -487,7 +502,7 @@ export function AppProvider({ children }) {
     data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant,
-    addPayment, updatePayment, recordPayment, revertPayment,
+    addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
     addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,
