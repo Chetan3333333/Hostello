@@ -2,27 +2,44 @@ import { useState } from 'react';
 import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
-import { Plus, UserMinus, Eye } from 'lucide-react';
+import { Plus, UserMinus, Eye, Edit2 } from 'lucide-react';
 
 export default function TenantManagement() {
-  const { currentTenants, currentRooms, currentPayments, addTenant, checkoutTenant } = useApp();
+  const { currentTenants, currentRooms, currentPayments, addTenant, updateTenant, checkoutTenant } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [viewTenant, setViewTenant] = useState(null);
   const [checkoutData, setCheckoutData] = useState(null);
+  const [editingTenantId, setEditingTenantId] = useState(null);
   const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
 
-  const availableRooms = currentRooms.filter(r => r.status === 'available' || (r.status === 'occupied' && r.currentOccupants < r.capacity));
+  const availableRooms = currentRooms.filter(r => r.status === 'available' || (r.status === 'occupied' && r.currentOccupants < r.capacity) || (editingTenantId && r.id === form.roomId));
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Prevent duplicate entries based on phone number
+    const duplicate = currentTenants.find(t => t.phone === form.phone && t.isActive !== false && t.id !== editingTenantId);
+    if (duplicate) {
+      alert(`A tenant with the phone number ${form.phone} already exists (${duplicate.name} in Room ${duplicate.roomNumber}).`);
+      return;
+    }
+
     const room = currentRooms.find(r => r.id === form.roomId);
-    addTenant({
+    const tenantData = {
       ...form,
       rentAmount: Number(form.rentAmount) || room?.price || 0,
       securityDeposit: Number(form.securityDeposit) || room?.price || 0,
       roomNumber: room?.number || '',
-    });
+    };
+
+    if (editingTenantId) {
+      updateTenant(editingTenantId, tenantData);
+    } else {
+      addTenant(tenantData);
+    }
+
     setModalOpen(false);
+    setEditingTenantId(null);
     setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
   };
 
@@ -57,6 +74,9 @@ export default function TenantManagement() {
           <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setViewTenant(row); }} title="View Details">
             <Eye size={16} />
           </button>
+          <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleEdit(row); }} title="Edit Tenant">
+            <Edit2 size={16} />
+          </button>
           <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleCheckout(row); }} title="Check Out" style={{ color: 'var(--danger)' }}>
             <UserMinus size={16} />
           </button>
@@ -67,6 +87,27 @@ export default function TenantManagement() {
 
   const openAddModal = () => {
     setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
+    setEditingTenantId(null);
+    setModalOpen(true);
+  };
+
+  const handleEdit = (tenant) => {
+    setForm({
+      name: tenant.name,
+      phone: tenant.phone,
+      email: tenant.email || '',
+      college: tenant.college || '',
+      year: tenant.year || '1st Year',
+      parentName: tenant.parentName || '',
+      parentPhone: tenant.parentPhone || '',
+      idProof: tenant.idProof || 'Aadhar Card',
+      idNumber: tenant.idNumber || '',
+      roomId: tenant.roomId,
+      rentAmount: tenant.rentAmount,
+      securityDeposit: tenant.securityDeposit,
+      checkInDate: tenant.checkInDate
+    });
+    setEditingTenantId(tenant.id);
     setModalOpen(true);
   };
 
@@ -85,8 +126,8 @@ export default function TenantManagement() {
         <DataTable columns={columns} data={currentTenants} searchPlaceholder="Search by name, room, phone..." emptyMessage="No tenants found. Add your first tenant!" />
       </div>
 
-      {/* Add Tenant Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Add New Tenant" size="lg">
+      {/* Add/Edit Tenant Modal */}
+      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editingTenantId ? "Edit Tenant" : "Add New Tenant"} size="lg">
         <form onSubmit={handleSubmit}>
           <h4 style={{ marginBottom: '16px', color: 'var(--primary-light)' }}>Student Details</h4>
           <div className="form-row">
@@ -172,7 +213,7 @@ export default function TenantManagement() {
 
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">Add Tenant</button>
+            <button type="submit" className="btn btn-primary">{editingTenantId ? 'Save Changes' : 'Add Tenant'}</button>
           </div>
         </form>
       </Modal>

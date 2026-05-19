@@ -269,19 +269,60 @@ export function AppProvider({ children }) {
   }, [activeHostelId, currentRooms]);
 
   const updateTenant = useCallback(async (tenantId, updates) => {
+    const tenant = data.tenants.find(t => t.id === tenantId);
+    if (!tenant) return;
+
+    let promises = [];
+    let stateUpdates = { rooms: null };
+
+    // Check if room is changing
+    if (updates.roomId && updates.roomId !== tenant.roomId) {
+      const oldRoom = currentRooms.find(r => r.id === tenant.roomId);
+      const newRoom = currentRooms.find(r => r.id === updates.roomId);
+
+      if (oldRoom && newRoom) {
+        const oldOccupants = Math.max(0, (oldRoom.currentOccupants || 0) - 1);
+        const oldRoomUpdates = { currentOccupants: oldOccupants, status: oldOccupants >= oldRoom.capacity ? 'occupied' : 'available' };
+        
+        const newOccupants = (newRoom.currentOccupants || 0) + 1;
+        const newRoomUpdates = { currentOccupants: newOccupants, status: newOccupants >= newRoom.capacity ? 'occupied' : 'available' };
+
+        promises.push(supabase.from('rooms').update(toSnakeCase(oldRoomUpdates)).eq('id', oldRoom.id));
+        promises.push(supabase.from('rooms').update(toSnakeCase(newRoomUpdates)).eq('id', newRoom.id));
+
+        stateUpdates.rooms = {
+          old: { id: oldRoom.id, updates: oldRoomUpdates },
+          new: { id: newRoom.id, updates: newRoomUpdates }
+        };
+      }
+    }
+
+    promises.push(supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId));
+
     try {
-      const { error } = await supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId);
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...updates } : t)
-      }));
+      await Promise.all(promises);
+      
+      setData(prev => {
+        let nextRooms = prev.rooms;
+        if (stateUpdates.rooms) {
+          nextRooms = nextRooms.map(r => {
+            if (r.id === stateUpdates.rooms.old.id) return { ...r, ...stateUpdates.rooms.old.updates };
+            if (r.id === stateUpdates.rooms.new.id) return { ...r, ...stateUpdates.rooms.new.updates };
+            return r;
+          });
+        }
+        return {
+          ...prev,
+          tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...updates } : t),
+          rooms: nextRooms
+        };
+      });
       toast.success('Tenant updated');
     } catch (err) {
       toast.error('Failed to update tenant');
       console.error(err);
     }
-  }, []);
+  }, [data.tenants, currentRooms]);
 
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
