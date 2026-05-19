@@ -273,10 +273,11 @@ export function AppProvider({ children }) {
     if (!tenant) return;
 
     let promises = [];
-    let stateUpdates = { rooms: null };
+    let stateUpdates = { rooms: null, paymentUpdates: null };
 
     // Check if room is changing
-    if (updates.roomId && updates.roomId !== tenant.roomId) {
+    const isRoomChanging = updates.roomId && updates.roomId !== tenant.roomId;
+    if (isRoomChanging) {
       const oldRoom = currentRooms.find(r => r.id === tenant.roomId);
       const newRoom = currentRooms.find(r => r.id === updates.roomId);
 
@@ -294,6 +295,17 @@ export function AppProvider({ children }) {
           old: { id: oldRoom.id, updates: oldRoomUpdates },
           new: { id: newRoom.id, updates: newRoomUpdates }
         };
+
+        // Sync pending/overdue payments with new room number
+        const newRoomNumber = updates.roomNumber || newRoom.number;
+        const paymentSyncUpdates = { roomNumber: newRoomNumber };
+        promises.push(
+          supabase.from('payments')
+            .update(toSnakeCase(paymentSyncUpdates))
+            .eq('tenant_id', tenantId)
+            .in('status', ['pending', 'overdue'])
+        );
+        stateUpdates.paymentUpdates = { tenantId, roomNumber: newRoomNumber };
       }
     }
 
@@ -311,10 +323,20 @@ export function AppProvider({ children }) {
             return r;
           });
         }
+        let nextPayments = prev.payments;
+        if (stateUpdates.paymentUpdates) {
+          nextPayments = nextPayments.map(p => {
+            if (p.tenantId === stateUpdates.paymentUpdates.tenantId && p.status !== 'paid') {
+              return { ...p, roomNumber: stateUpdates.paymentUpdates.roomNumber };
+            }
+            return p;
+          });
+        }
         return {
           ...prev,
           tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...updates } : t),
-          rooms: nextRooms
+          rooms: nextRooms,
+          payments: nextPayments
         };
       });
       toast.success('Tenant updated');
