@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Admin secrets (service role key) — NEVER commit this
+.admin.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

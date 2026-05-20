@@ -10,7 +10,7 @@ export default function RoomManagement() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const [form, setForm] = useState({ number: '', floor: 1, type: '3_sharing', price: '', status: 'available', hasAttachedBath: false, hasAC: false });
+  const [form, setForm] = useState({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, hasAttachedBath: false, hasAc: false });
 
   const filters = [
     { key: 'all', label: `All (${currentRooms.length})` },
@@ -29,26 +29,33 @@ export default function RoomManagement() {
 
   const openAddModal = () => {
     setEditingRoom(null);
-    setForm({ number: '', floor: 1, type: '3_sharing', price: '', status: 'available', hasAttachedBath: false, hasAC: false });
+    setForm({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, hasAttachedBath: false, hasAc: false });
     setModalOpen(true);
   };
 
   const openEditModal = (room) => {
     setEditingRoom(room);
-    setForm({ number: room.number, floor: room.floor, type: room.type, price: room.price, status: room.status, hasAttachedBath: room.hasAttachedBath, hasAC: room.hasAC });
+    setForm({ number: room.number, floor: room.floor, type: room.type, price: room.price, isMaintenance: room.status === 'maintenance', hasAttachedBath: room.hasAttachedBath, hasAc: room.hasAc });
     setModalOpen(true);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const capacity = getCapacityFromType(form.type);
+    const currentOccupants = editingRoom ? editingRoom.currentOccupants : 0;
+    
+    // Auto-calculate correct status based purely on occupancy math and maintenance override
+    let finalStatus = form.isMaintenance ? 'maintenance' : (currentOccupants >= capacity ? 'occupied' : 'available');
+
     const roomData = {
       ...form,
       price: Number(form.price),
       floor: Number(form.floor),
       capacity: capacity,
-      currentOccupants: editingRoom ? editingRoom.currentOccupants : 0,
+      currentOccupants: currentOccupants,
+      status: finalStatus
     };
+    delete roomData.isMaintenance; // clean up before sending to DB
     if (editingRoom) {
       updateRoom(editingRoom.id, roomData);
     } else {
@@ -58,8 +65,8 @@ export default function RoomManagement() {
   };
 
   const handleDelete = (room) => {
-    if (room.status === 'occupied') {
-      alert('Cannot delete an occupied room. Please check out tenants first.');
+    if (room.currentOccupants > 0) {
+      alert('Cannot delete a room that has occupants. Please check out or move tenants first.');
       return;
     }
     setConfirmDialog({
@@ -149,29 +156,25 @@ export default function RoomManagement() {
               <input type="number" className="form-input" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required placeholder="e.g. 4500" />
             </div>
           </div>
-          <div className="form-row" style={{ marginTop: '16px' }}>
-            <div className="form-group">
-              <label>Status</label>
-              <select className="form-input" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-                <option value="available">Available</option>
-                <option value="occupied">Occupied</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-            </div>
+          <div style={{ marginTop: '16px' }}>
+            <label className={`amenity-checkbox ${form.isMaintenance ? 'checked' : ''}`} style={{ borderColor: form.isMaintenance ? 'var(--warning)' : '', backgroundColor: form.isMaintenance ? 'rgba(234, 179, 8, 0.1)' : '' }}>
+              <input type="checkbox" checked={form.isMaintenance} onChange={e => setForm({...form, isMaintenance: e.target.checked})} />
+              <span style={{ color: form.isMaintenance ? 'var(--warning)' : 'inherit' }}>Mark room as under maintenance</span>
+            </label>
           </div>
           <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
             <label className={`amenity-checkbox ${form.hasAttachedBath ? 'checked' : ''}`}>
               <input type="checkbox" checked={form.hasAttachedBath} onChange={e => setForm({...form, hasAttachedBath: e.target.checked})} />
               Attached Bathroom
             </label>
-            <label className={`amenity-checkbox ${form.hasAC ? 'checked' : ''}`}>
-              <input type="checkbox" checked={form.hasAC} onChange={e => setForm({...form, hasAC: e.target.checked})} />
+            <label className={`amenity-checkbox ${form.hasAc ? 'checked' : ''}`}>
+              <input type="checkbox" checked={form.hasAc} onChange={e => setForm({...form, hasAc: e.target.checked})} />
               AC Room
             </label>
           </div>
           <div className="modal-actions">
             <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)}>Cancel</button>
-            {editingRoom && editingRoom.status !== 'occupied' && (
+            {editingRoom && editingRoom.currentOccupants === 0 && (
               <button type="button" className="btn btn-danger" onClick={() => { handleDelete(editingRoom); setModalOpen(false); }}>
                 <Trash2 size={16} /> Delete
               </button>

@@ -34,6 +34,12 @@ const toSnakeCase = (obj) => {
   return newObj;
 };
 
+export const calculateRoomStatus = (occupants, capacity, isMaintenance) => {
+  if (isMaintenance) return 'maintenance';
+  if (occupants >= capacity) return 'occupied';
+  return 'available';
+};
+
 export function AppProvider({ children }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
@@ -248,7 +254,10 @@ export function AppProvider({ children }) {
     if (!room) return;
 
     const newOccupants = (room.currentOccupants || 0) + 1;
-    const roomUpdates = { currentOccupants: newOccupants, status: newOccupants >= room.capacity ? 'occupied' : 'available' };
+    const roomUpdates = { 
+      currentOccupants: newOccupants, 
+      status: calculateRoomStatus(newOccupants, room.capacity, room.status === 'maintenance') 
+    };
 
     try {
       await Promise.all([
@@ -283,10 +292,16 @@ export function AppProvider({ children }) {
 
       if (oldRoom && newRoom) {
         const oldOccupants = Math.max(0, (oldRoom.currentOccupants || 0) - 1);
-        const oldRoomUpdates = { currentOccupants: oldOccupants, status: oldOccupants >= oldRoom.capacity ? 'occupied' : 'available' };
+        const oldRoomUpdates = { 
+          currentOccupants: oldOccupants, 
+          status: calculateRoomStatus(oldOccupants, oldRoom.capacity, oldRoom.status === 'maintenance') 
+        };
         
         const newOccupants = (newRoom.currentOccupants || 0) + 1;
-        const newRoomUpdates = { currentOccupants: newOccupants, status: newOccupants >= newRoom.capacity ? 'occupied' : 'available' };
+        const newRoomUpdates = { 
+          currentOccupants: newOccupants, 
+          status: calculateRoomStatus(newOccupants, newRoom.capacity, newRoom.status === 'maintenance') 
+        };
 
         promises.push(supabase.from('rooms').update(toSnakeCase(oldRoomUpdates)).eq('id', oldRoom.id));
         promises.push(supabase.from('rooms').update(toSnakeCase(newRoomUpdates)).eq('id', newRoom.id));
@@ -404,7 +419,10 @@ export function AppProvider({ children }) {
     let roomUpdates = null;
     if (room) {
       const newOccupants = Math.max(0, (room.currentOccupants || 0) - 1);
-      roomUpdates = { currentOccupants: newOccupants, status: newOccupants >= room.capacity ? 'occupied' : 'available' };
+      roomUpdates = { 
+        currentOccupants: newOccupants, 
+        status: calculateRoomStatus(newOccupants, room.capacity, room.status === 'maintenance') 
+      };
     }
 
     try {

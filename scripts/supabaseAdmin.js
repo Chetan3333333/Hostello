@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 function loadLocalEnv() {
-  const envPath = resolve('.env.local');
+  const envPath = resolve('.admin.env');
   if (!existsSync(envPath)) return;
 
   const envText = readFileSync(envPath, 'utf8');
