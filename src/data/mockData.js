@@ -208,10 +208,26 @@ export const amenityLabels = {
 };
 
 export const roomTypeLabels = {
+  '1_sharing': '1 Sharing (Single)',
+  '2_sharing': '2 Sharing',
   '3_sharing': '3 Sharing',
   '4_sharing': '4 Sharing',
   '5_sharing': '5 Sharing',
   '6_sharing': '6 Sharing',
+  '7_sharing': '7 Sharing',
+  '8_sharing': '8 Sharing',
+  '9_sharing': '9 Sharing',
+  '10_sharing': '10 Sharing',
+  '11_sharing': '11 Sharing',
+  '12_sharing': '12 Sharing',
+  '13_sharing': '13 Sharing',
+  '14_sharing': '14 Sharing',
+  '15_sharing': '15 Sharing',
+  '16_sharing': '16 Sharing',
+  '17_sharing': '17 Sharing',
+  '18_sharing': '18 Sharing',
+  '19_sharing': '19 Sharing',
+  '20_sharing': '20 Sharing',
 };
 
 export const staffRoleLabels = {

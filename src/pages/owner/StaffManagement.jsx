@@ -236,7 +236,7 @@ export default function StaffManagement() {
             </div>
             <div className="form-group">
               <label>Monthly Salary (₹) *</label>
-              <input type="number" className="form-input" value={form.salary} onChange={e => setForm({...form, salary: e.target.value})} required placeholder="e.g. 12000" />
+              <input type="number" min="0" className="form-input" value={form.salary} onChange={e => setForm({...form, salary: e.target.value})} required placeholder="e.g. 12000" />
             </div>
           </div>
           <div className="form-row" style={{ marginTop: '16px' }}>

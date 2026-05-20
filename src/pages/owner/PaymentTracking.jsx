@@ -177,7 +177,7 @@ export default function PaymentTracking() {
           <div className="form-row" style={{ marginTop: '12px' }}>
             <div className="form-group">
               <label>Amount (₹) *</label>
-              <input type="number" className="form-input" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required />
+              <input type="number" min="0" className="form-input" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required />
             </div>
             <div className="form-group">
               <label>Month *</label>

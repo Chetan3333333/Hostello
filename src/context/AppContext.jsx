@@ -24,10 +24,6 @@ const toSnakeCase = (obj) => {
   const newObj = {};
   for (const key in obj) {
     if (key === 'createdAt') continue;
-    if (key === 'hasAC') {
-      newObj.has_ac = obj[key];
-      continue;
-    }
     const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     newObj[snakeKey] = obj[key];
   }
@@ -242,8 +238,12 @@ export function AppProvider({ children }) {
       setData(prev => ({ ...prev, rooms: prev.rooms.filter(r => r.id !== roomId) }));
       toast.success('Room deleted');
     } catch (err) {
-      toast.error('Failed to delete room');
-      console.error(err);
+      if (err?.code === '23503') {
+        toast.error('Cannot delete: This room has past tenants linked to it. Please rename it or mark it as maintenance instead.');
+      } else {
+        toast.error('Failed to delete room');
+        console.error(err);
+      }
     }
   }, []);
 

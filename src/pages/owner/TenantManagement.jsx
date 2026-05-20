@@ -14,7 +14,7 @@ export default function TenantManagement() {
   const [swapForm, setSwapForm] = useState({ tenant1: '', tenant2: '' });
   const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
 
-  const availableRooms = currentRooms.filter(r => r.status === 'available' || (r.status === 'occupied' && r.currentOccupants < r.capacity) || (editingTenantId && r.id === form.roomId));
+  const availableRooms = currentRooms.filter(r => r.status === 'available' || r.status === 'maintenance' || (editingTenantId && r.id === form.roomId));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -226,12 +226,12 @@ export default function TenantManagement() {
             </div>
             <div className="form-group">
               <label>Monthly Rent (₹)</label>
-              <input type="number" className="form-input" value={form.rentAmount} onChange={e => setForm({...form, rentAmount: e.target.value})} placeholder="Auto-filled from room" />
+              <input type="number" min="0" className="form-input" value={form.rentAmount} onChange={e => setForm({...form, rentAmount: e.target.value})} placeholder="Auto-filled from room" />
             </div>
           </div>
           <div className="form-group" style={{ marginTop: '12px' }}>
             <label>Security Deposit (₹)</label>
-            <input type="number" className="form-input" value={form.securityDeposit} onChange={e => setForm({...form, securityDeposit: e.target.value})} placeholder="Usually equals one month rent" />
+            <input type="number" min="0" className="form-input" value={form.securityDeposit} onChange={e => setForm({...form, securityDeposit: e.target.value})} placeholder="Usually equals one month rent" />
           </div>
 
           <div className="modal-actions">

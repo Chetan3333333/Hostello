@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../../hooks/useApp';
 import Modal from '../../components/Modal';
-import { Plus, Trash2, BedDouble } from 'lucide-react';
+import { Plus, Trash2, BedDouble, Snowflake, ShowerHead, Wrench } from 'lucide-react';
 import { roomTypeLabels } from '../../data/mockData';
 
 export default function RoomManagement() {
@@ -10,7 +10,7 @@ export default function RoomManagement() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const [form, setForm] = useState({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, hasAttachedBath: false, hasAc: false });
+  const [form, setForm] = useState({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, maintenanceNotes: '', hasAttachedBath: false, hasAc: false });
 
   const filters = [
     { key: 'all', label: `All (${currentRooms.length})` },
@@ -29,13 +29,13 @@ export default function RoomManagement() {
 
   const openAddModal = () => {
     setEditingRoom(null);
-    setForm({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, hasAttachedBath: false, hasAc: false });
+    setForm({ number: '', floor: 1, type: '3_sharing', price: '', isMaintenance: false, maintenanceNotes: '', hasAttachedBath: false, hasAc: false });
     setModalOpen(true);
   };
 
   const openEditModal = (room) => {
     setEditingRoom(room);
-    setForm({ number: room.number, floor: room.floor, type: room.type, price: room.price, isMaintenance: room.status === 'maintenance', hasAttachedBath: room.hasAttachedBath, hasAc: room.hasAc });
+    setForm({ number: room.number, floor: room.floor, type: room.type, price: room.price, isMaintenance: room.status === 'maintenance', maintenanceNotes: room.maintenanceNotes || '', hasAttachedBath: room.hasAttachedBath, hasAc: room.hasAc });
     setModalOpen(true);
   };
 
@@ -43,6 +43,19 @@ export default function RoomManagement() {
     e.preventDefault();
     const capacity = getCapacityFromType(form.type);
     const currentOccupants = editingRoom ? editingRoom.currentOccupants : 0;
+
+    // Bug 2 Fix: Duplicate room number check
+    const duplicate = currentRooms.find(r => r.number === form.number && (!editingRoom || r.id !== editingRoom.id));
+    if (duplicate) {
+      alert(`Room ${form.number} already exists! Please use a different room number.`);
+      return;
+    }
+
+    // Suggestion 1 Fix: Capacity change protection
+    if (editingRoom && capacity < currentOccupants) {
+      alert(`This room currently has ${currentOccupants} occupants. You cannot convert it to ${roomTypeLabels[form.type]} until you move at least ${currentOccupants - capacity} student(s) out.`);
+      return;
+    }
     
     // Auto-calculate correct status based purely on occupancy math and maintenance override
     let finalStatus = form.isMaintenance ? 'maintenance' : (currentOccupants >= capacity ? 'occupied' : 'available');
@@ -118,6 +131,13 @@ export default function RoomManagement() {
                   <div style={{ fontSize: '0.7rem', color: 'var(--dark-text-muted)', marginTop: '4px' }}>
                     {room.currentOccupants}/{room.capacity} occupants
                   </div>
+                  {(room.hasAc || room.hasAttachedBath || (room.status === 'maintenance' && room.maintenanceNotes)) && (
+                    <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', marginTop: '6px' }}>
+                      {room.hasAc && <Snowflake size={13} style={{ color: 'var(--accent)', opacity: 0.8 }} title="AC Room" />}
+                      {room.hasAttachedBath && <ShowerHead size={13} style={{ color: 'var(--primary-light)', opacity: 0.8 }} title="Attached Bathroom" />}
+                      {room.status === 'maintenance' && room.maintenanceNotes && <Wrench size={13} style={{ color: 'var(--warning)', opacity: 0.8 }} title={`Maintenance Notes:\n${room.maintenanceNotes}`} />}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -153,7 +173,7 @@ export default function RoomManagement() {
             </div>
             <div className="form-group">
               <label>Monthly Rent (₹)</label>
-              <input type="number" className="form-input" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required placeholder="e.g. 4500" />
+              <input type="number" min="0" className="form-input" value={form.price} onChange={e => setForm({...form, price: e.target.value})} required placeholder="e.g. 4500" />
             </div>
           </div>
           <div style={{ marginTop: '16px' }}>
@@ -161,6 +181,11 @@ export default function RoomManagement() {
               <input type="checkbox" checked={form.isMaintenance} onChange={e => setForm({...form, isMaintenance: e.target.checked})} />
               <span style={{ color: form.isMaintenance ? 'var(--warning)' : 'inherit' }}>Mark room as under maintenance</span>
             </label>
+            {form.isMaintenance && (
+              <div className="form-group" style={{ marginTop: '12px' }}>
+                <textarea className="form-input" rows="2" placeholder="List any repairs needed (e.g., Broken AC, Leaking pipe)" value={form.maintenanceNotes} onChange={e => setForm({...form, maintenanceNotes: e.target.value})} style={{ borderColor: 'rgba(234, 179, 8, 0.3)', backgroundColor: 'rgba(234, 179, 8, 0.05)' }}></textarea>
+              </div>
+            )}
           </div>
           <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
             <label className={`amenity-checkbox ${form.hasAttachedBath ? 'checked' : ''}`}>
