@@ -6,7 +6,7 @@ import StatCard from '../../components/StatCard';
 import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment } = useApp();
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment, generateMonthlyBills, updatePayment } = useApp();
   const currentMonthStr = new Date().toISOString().substring(0, 7);
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -57,6 +57,32 @@ export default function PaymentTracking() {
     });
   };
 
+  const handleWriteOffPayment = (payment) => {
+    setConfirmDialog({
+      title: 'Write Off Debt',
+      message: `Are you sure you want to write off ₹${payment.amount.toLocaleString()} for ${payment.tenantName}? This will archive the debt and remove it from your Dashboard's Total Outstanding amount.`,
+      type: 'warning',
+      confirmText: 'Write Off Debt',
+      onConfirm: () => {
+        updatePayment(payment.id, { status: 'written_off' });
+        setConfirmDialog(null);
+      }
+    });
+  };
+
+  const handleGenerateBills = () => {
+    setConfirmDialog({
+      title: 'Generate Monthly Bills',
+      message: `Automatically generate pending bills for all active tenants for the current month (${currentMonthStr})? Students who already have a bill for this month will be skipped safely.`,
+      type: 'success',
+      confirmText: 'Generate Bills',
+      onConfirm: () => {
+        generateMonthlyBills();
+        setConfirmDialog(null);
+      }
+    });
+  };
+
   const handleAddPayment = (e) => {
     e.preventDefault();
     const tenant = currentTenants.find(t => t.id === form.tenantId);
@@ -91,39 +117,49 @@ export default function PaymentTracking() {
     {
       header: 'Status', accessor: 'status',
       render: row => (
-        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : 'warning'}`}>
-          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : '⏳ Pending'}
+        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : row.status === 'written_off' ? 'ghost' : 'warning'}`}>
+          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : row.status === 'written_off' ? 'Archived' : '⏳ Pending'}
         </span>
       )
     },
     {
       header: 'Action', sortable: false,
-      render: row => row.status !== 'paid' ? (
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
-            <CheckCircle size={14} /> Mark Paid
-          </button>
-          <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDeletePayment(row); }} title="Delete payment">
-            Delete
-          </button>
-          <a 
-            href={`https://wa.me/91${currentTenants.find(t => t.id === row.tenantId)?.phone || ''}?text=${encodeURIComponent(`Hi ${row.tenantName}, your hostel rent of ₹${row.amount} for the month of ${row.month} is due. Please pay via UPI at the earliest.`)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn btn-primary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <MessageCircle size={14} /> Remind
-          </a>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRevertPayment(row); }} title="Undo payment">
-            Undo
-          </button>
-        </div>
-      )
+      render: row => {
+        if (row.status === 'paid' || row.status === 'written_off') {
+          return (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRevertPayment(row); }} title="Undo payment">
+                Undo
+              </button>
+            </div>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
+              <CheckCircle size={14} /> Mark Paid
+            </button>
+            {row.status === 'overdue' && (
+              <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleWriteOffPayment(row); }} title="Write off unrecoverable debt">
+                Write-off
+              </button>
+            )}
+            <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDeletePayment(row); }} title="Delete payment">
+              Delete
+            </button>
+            <a 
+              href={`https://wa.me/91${currentTenants.find(t => t.id === row.tenantId)?.phone || ''}?text=${encodeURIComponent(`Hi ${row.tenantName}, your hostel rent of ₹${row.amount} for the month of ${row.month} is due. Please pay via UPI at the earliest.`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MessageCircle size={14} /> Remind
+            </a>
+          </div>
+        );
+      }
     },
   ];
 
@@ -132,6 +168,9 @@ export default function PaymentTracking() {
       <div className="page-header">
         <h1>Payment Tracking</h1>
         <div className="page-header-actions">
+          <button className="btn btn-primary btn-outline" onClick={handleGenerateBills} style={{ marginRight: '8px' }}>
+            <Plus size={18} /> Generate {currentMonthStr} Bills
+          </button>
           <button className="btn btn-primary" onClick={() => setModalOpen(true)}>
             <Plus size={18} /> Record Payment
           </button>
@@ -150,7 +189,7 @@ export default function PaymentTracking() {
           {months.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <div className="room-filters" style={{ marginBottom: 0 }}>
-          {['all', 'paid', 'pending', 'overdue'].map(s => (
+          {['all', 'paid', 'pending', 'overdue', 'written_off'].map(s => (
             <button key={s} className={`filter-chip ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>
               {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>

@@ -97,6 +97,27 @@ export function AppProvider({ children }) {
 
     const mappedHostel = mapKeys([hostelData])[0];
     setOwnerProfile({ userId, hostelId });
+    
+    // Auto-Overdue Logic: Check for pending bills where due date has passed
+    let mappedPayments = mapKeys(paymentsData);
+    const todayStr = new Date().toISOString().split('T')[0];
+    const newlyOverdue = mappedPayments.filter(p => p.status === 'pending' && p.dueDate && p.dueDate < todayStr);
+    
+    if (newlyOverdue.length > 0) {
+      mappedPayments = mappedPayments.map(p => 
+        (p.status === 'pending' && p.dueDate && p.dueDate < todayStr) ? { ...p, status: 'overdue' } : p
+      );
+      
+      const overdueIds = newlyOverdue.map(p => p.id);
+      // Fire-and-forget DB update
+      supabase.from('payments')
+        .update({ status: 'overdue' })
+        .in('id', overdueIds)
+        .then(({ error }) => {
+          if (error) console.error('Failed to auto-update overdue status', error);
+        });
+    }
+
     setData(prev => ({
       hostels: [
         ...prev.hostels.filter(h => h.id !== hostelId),
@@ -107,7 +128,7 @@ export function AppProvider({ children }) {
         ...mapKeys(roomsData)
       ],
       tenants: mapKeys(tenantsData),
-      payments: mapKeys(paymentsData),
+      payments: mappedPayments,
       staff: mapKeys(staffData)
     }));
   }, []);
@@ -610,21 +631,79 @@ export function AppProvider({ children }) {
     }
   }, [data.staff]);
 
+  const generateMonthlyBills = useCallback(async () => {
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    // 1. Find all active tenants (checkout guard is built into currentTenants filtering)
+    const activeTenants = currentTenants;
+    
+    // 2. Duplication guard: filter out tenants who already have a bill for the current month
+    const tenantsToBill = activeTenants.filter(t => {
+      const hasBill = currentPayments.some(p => p.tenantId === t.id && p.month === currentMonth);
+      return !hasBill;
+    });
+
+    if (tenantsToBill.length === 0) {
+      toast.info('All active tenants already have bills for this month.');
+      return;
+    }
+
+    const dueDate = new Date();
+    dueDate.setDate(5); // 5th of the month due date
+    const dueDateStr = dueDate.toISOString().split('T')[0];
+
+    const newBills = tenantsToBill.map(t => ({
+      id: `p-${Date.now()}-${t.id}`,
+      hostelId: activeHostelId,
+      tenantId: t.id,
+      tenantName: t.name,
+      roomId: t.roomId,
+      roomNumber: t.roomNumber,
+      amount: t.rentAmount,
+      month: currentMonth,
+      dueDate: dueDateStr,
+      status: 'pending'
+    }));
+
+    try {
+      const { error } = await supabase.from('payments').insert(newBills.map(toSnakeCase));
+      if (error) throw error;
+      setData(prev => ({ ...prev, payments: [...prev.payments, ...newBills] }));
+      toast.success(`Generated ${newBills.length} bills for ${currentMonth}`);
+    } catch (err) {
+      toast.error('Failed to generate bills');
+      console.error(err);
+    }
+  }, [currentTenants, currentPayments, activeHostelId]);
+
   const getStats = useCallback(() => {
     const occupied = currentRooms.filter(r => r.status === 'occupied').length;
     const available = currentRooms.filter(r => r.status === 'available').length;
     const maintenance = currentRooms.filter(r => r.status === 'maintenance').length;
     const total = currentRooms.length;
-    const occupancyRate = total > 0 ? Math.round((occupied / total) * 100) : 0;
+    
+    const totalBeds = currentRooms.reduce((sum, r) => sum + (r.capacity || 0), 0);
+    const occupancyRate = totalBeds > 0 ? Math.round((currentTenants.length / totalBeds) * 100) : 0;
 
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const monthPayments = currentPayments.filter(p => p.month === currentMonth);
+    
+    // Collected: Paid this month
     const collected = monthPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-    const pending = monthPayments.filter(p => p.status !== 'paid').reduce((sum, p) => sum + p.amount, 0);
+    
+    // Pending: Pending this month only (overdue is handled in Total Outstanding)
+    const pending = monthPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
+    
+    // Total Outstanding: Pending/Overdue ALL time (ignores written_off)
+    const totalOutstanding = currentPayments
+      .filter(p => p.status === 'pending' || p.status === 'overdue')
+      .reduce((sum, p) => sum + p.amount, 0);
+
     const overdue = currentPayments.filter(p => p.status === 'overdue').length;
 
-    return { total, occupied, available, maintenance, occupancyRate, collected, pending, overdue, totalTenants: currentTenants.length };
+    return { total, occupied, available, maintenance, occupancyRate, collected, pending, totalOutstanding, overdue, totalTenants: currentTenants.length };
   }, [currentRooms, currentPayments, currentTenants]);
 
   const value = {
@@ -632,7 +711,7 @@ export function AppProvider({ children }) {
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
     addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
-    updateHostel, getStats, hostels: data.hostels,
+    updateHostel, getStats, generateMonthlyBills, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
     addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,
   };

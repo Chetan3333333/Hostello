@@ -1,6 +1,6 @@
 import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
-import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog } from 'lucide-react';
+import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 
@@ -26,9 +26,15 @@ export default function Dashboard() {
     { name: 'Maintenance', value: stats.maintenance, color: '#FFB547' },
   ].filter(d => d.value > 0);
 
-  // Revenue trend (last 6 months)
-  const months = ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'];
-  const monthKeys = ['2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05'];
+  // Revenue trend (last 6 months dynamically)
+  const now = new Date();
+  const months = [];
+  const monthKeys = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(d.toLocaleString('default', { month: 'short' }));
+    monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
   const revenueTrend = months.map((month, i) => {
     const paid = currentPayments.filter(p => p.month === monthKeys[i] && p.status === 'paid')
       .reduce((sum, p) => sum + p.amount, 0);
@@ -67,7 +73,8 @@ export default function Dashboard() {
         <StatCard icon={BedDouble} label="Available" value={stats.available} color="success" />
         <StatCard icon={Users} label="Total Tenants" value={stats.totalTenants} color="primary" />
         <StatCard icon={IndianRupee} label="Collected (This Month)" value={`₹${stats.collected.toLocaleString()}`} color="success" />
-        <StatCard icon={AlertTriangle} label="Pending" value={`₹${stats.pending.toLocaleString()}`} color={stats.pending > 0 ? 'danger' : 'success'} />
+        <StatCard icon={Clock} label="Pending (This Month)" value={`₹${stats.pending.toLocaleString()}`} color="warning" />
+        <StatCard icon={AlertTriangle} label="Total Outstanding" value={`₹${stats.totalOutstanding.toLocaleString()}`} color={stats.totalOutstanding > 0 ? 'danger' : 'success'} />
       </div>
 
       <div className="dashboard-grid">
