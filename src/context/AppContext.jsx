@@ -8,7 +8,8 @@ const emptyData = {
   rooms: [],
   tenants: [],
   payments: [],
-  staff: []
+  staff: [],
+  activityLogs: []
 };
 
 const mapKeys = (arr) => arr?.map(item => {
@@ -64,7 +65,8 @@ export function AppProvider({ children }) {
       ...prev,
       tenants: [],
       payments: [],
-      staff: []
+      staff: [],
+      activityLogs: []
     }));
   }, []);
 
@@ -83,16 +85,18 @@ export function AppProvider({ children }) {
       { data: roomsData, error: roomsError },
       { data: tenantsData, error: tenantsError },
       { data: paymentsData, error: paymentsError },
-      { data: staffData, error: staffError }
+      { data: staffData, error: staffError },
+      { data: activityLogsData, error: activityLogsError }
     ] = await Promise.all([
       supabase.from('hostels').select('*').eq('id', hostelId).single(),
       supabase.from('rooms').select('*').eq('hostel_id', hostelId),
       supabase.from('tenants').select('*').eq('hostel_id', hostelId),
       supabase.from('payments').select('*').eq('hostel_id', hostelId),
-      supabase.from('staff').select('*').eq('hostel_id', hostelId)
+      supabase.from('staff').select('*').eq('hostel_id', hostelId),
+      supabase.from('activity_logs').select('*').eq('hostel_id', hostelId).order('created_at', { ascending: false }).limit(50)
     ]);
 
-    const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError;
+    const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError || activityLogsError;
     if (firstError) throw firstError;
 
     const mappedHostel = mapKeys([hostelData])[0];
@@ -114,7 +118,17 @@ export function AppProvider({ children }) {
         .update({ status: 'overdue' })
         .in('id', overdueIds)
         .then(({ error }) => {
-          if (error) console.error('Failed to auto-update overdue status', error);
+          if (error) {
+            console.error('Failed to auto-update overdue status', error);
+          } else {
+            const logs = newlyOverdue.map(p => ({
+              hostel_id: hostelId,
+              type: 'system',
+              message: `System automatically marked rent overdue for ${p.tenantName || 'Tenant'}, Room ${p.roomNumber || '?'}`,
+              created_at: new Date().toISOString()
+            }));
+            supabase.from('activity_logs').insert(logs).then(() => {});
+          }
         });
     }
 
@@ -129,9 +143,31 @@ export function AppProvider({ children }) {
       ],
       tenants: mapKeys(tenantsData),
       payments: mappedPayments,
-      staff: mapKeys(staffData)
+      staff: mapKeys(staffData),
+      activityLogs: mapKeys(activityLogsData || [])
     }));
   }, []);
+
+  const logActivity = useCallback((type, message) => {
+    // 🛡️ SECURITY UPDATE: The actual database logging is now handled by impenetrable Postgres Triggers.
+    // This function now simply acts as an "Optimistic UI Update" to instantly show the log on the dashboard
+    // without waiting for a network refresh or needing Supabase Realtime WebSockets.
+    const activeHostelId = ownerProfile?.hostelId || data.hostels[0]?.id;
+    if (!activeHostelId) return;
+    
+    const optimisticLog = {
+      id: `temp-${Date.now()}-${Math.random()}`,
+      hostelId: activeHostelId,
+      type,
+      message,
+      createdAt: new Date().toISOString()
+    };
+    
+    setData(prev => ({
+      ...prev,
+      activityLogs: [optimisticLog, ...prev.activityLogs]
+    }));
+  }, [ownerProfile, data.hostels]);
 
   useEffect(() => {
     let isActive = true;
@@ -170,7 +206,6 @@ export function AppProvider({ children }) {
         clearOwnerData();
         return;
       }
-
       const loadOwner = async () => {
         try {
           await fetchOwnerData(nextSession.user.id);
@@ -230,6 +265,7 @@ export function AppProvider({ children }) {
       const { error } = await supabase.from('rooms').insert([toSnakeCase(newRoom)]);
       if (error) throw error;
       setData(prev => ({ ...prev, rooms: [...prev.rooms, newRoom] }));
+      logActivity('system', `System: Room ${newRoom.number} was added to the hostel.`);
       toast.success('Room added');
     } catch (err) {
       toast.error('Failed to add room');
@@ -238,6 +274,7 @@ export function AppProvider({ children }) {
   }, [activeHostelId]);
 
   const updateRoom = useCallback(async (roomId, updates) => {
+    const room = currentRooms.find(r => r.id === roomId);
     try {
       const { error } = await supabase.from('rooms').update(toSnakeCase(updates)).eq('id', roomId);
       if (error) throw error;
@@ -245,18 +282,29 @@ export function AppProvider({ children }) {
         ...prev,
         rooms: prev.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r)
       }));
+      if (room && updates.status) {
+        if (updates.status === 'maintenance' && room.status !== 'maintenance') {
+          logActivity('room', `Room ${room.number} marked under maintenance`);
+        } else if (updates.status === 'available' && room.status === 'maintenance') {
+          logActivity('room', `Room ${room.number} is now available`);
+        }
+      }
       toast.success('Room updated');
     } catch (err) {
       toast.error('Failed to update room');
       console.error(err);
     }
-  }, []);
+  }, [currentRooms]);
 
   const deleteRoom = useCallback(async (roomId) => {
+    const room = currentRooms.find(r => r.id === roomId);
     try {
       const { error } = await supabase.from('rooms').delete().eq('id', roomId);
       if (error) throw error;
       setData(prev => ({ ...prev, rooms: prev.rooms.filter(r => r.id !== roomId) }));
+      if (room) {
+        logActivity('system', `WARNING: Room ${room.number} was permanently DELETED.`);
+      }
       toast.success('Room deleted');
     } catch (err) {
       if (err?.code === '23503') {
@@ -266,7 +314,7 @@ export function AppProvider({ children }) {
         console.error(err);
       }
     }
-  }, []);
+  }, [currentRooms]);
 
   const addTenant = useCallback(async (tenant) => {
     const newTenant = { ...tenant, id: `t-${Date.now()}`, hostelId: activeHostelId, isActive: true };
@@ -291,6 +339,7 @@ export function AppProvider({ children }) {
         tenants: [...prev.tenants, newTenant],
         rooms: prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r)
       }));
+      logActivity('tenant', `${newTenant.name} joined Room ${newTenant.roomNumber}`);
       toast.success('Tenant added successfully');
     } catch (err) {
       toast.error('Failed to add tenant');
@@ -375,6 +424,12 @@ export function AppProvider({ children }) {
           payments: nextPayments
         };
       });
+      if (isRoomChanging) {
+        logActivity('tenant', `${tenant.name} moved from Room ${tenant.roomNumber} to Room ${updates.roomNumber}`);
+      }
+      if (updates.rentAmount !== undefined && Number(updates.rentAmount) !== Number(tenant.rentAmount)) {
+        logActivity('tenant', `WARNING: ${tenant.name}'s monthly rent was secretly changed from ₹${Number(tenant.rentAmount).toLocaleString()} to ₹${Number(updates.rentAmount).toLocaleString()}.`);
+      }
       toast.success('Tenant updated');
     } catch (err) {
       toast.error('Failed to update tenant');
@@ -423,6 +478,7 @@ export function AppProvider({ children }) {
 
         return { ...prev, tenants: nextTenants, payments: nextPayments };
       });
+      logActivity('tenant', `${tenantA.name} and ${tenantB.name} swapped rooms`);
       toast.success('Rooms swapped successfully!');
     } catch (err) {
       toast.error('Failed to swap rooms');
@@ -458,6 +514,7 @@ export function AppProvider({ children }) {
         tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...tenantUpdates } : t),
         rooms: roomUpdates ? prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r) : prev.rooms
       }));
+      logActivity('tenant', `${tenant.name} checked out from Room ${tenant.roomNumber}`);
       toast.success('Tenant checked out');
     } catch (err) {
       toast.error('Failed to checkout tenant');
@@ -471,6 +528,7 @@ export function AppProvider({ children }) {
       const { error } = await supabase.from('payments').insert([toSnakeCase(newPayment)]);
       if (error) throw error;
       setData(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
+      logActivity('payment', `WARNING: A manual payment record of ₹${Number(newPayment.amount).toLocaleString()} was created for ${newPayment.tenantName}.`);
       toast.success('Payment added');
     } catch (err) {
       toast.error('Failed to add payment');
@@ -479,6 +537,7 @@ export function AppProvider({ children }) {
   }, [activeHostelId]);
 
   const updatePayment = useCallback(async (paymentId, updates) => {
+    const payment = data.payments.find(p => p.id === paymentId);
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
       if (error) throw error;
@@ -486,14 +545,21 @@ export function AppProvider({ children }) {
         ...prev,
         payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
       }));
+      if (updates.status === 'written_off' && payment) {
+        logActivity('payment', `₹${payment.amount.toLocaleString()} written off for ${payment.tenantName}`);
+      }
+      if (updates.amount !== undefined && Number(updates.amount) !== Number(payment?.amount)) {
+        logActivity('payment', `WARNING: Pending bill amount for ${payment?.tenantName} was altered from ₹${Number(payment?.amount).toLocaleString()} to ₹${Number(updates.amount).toLocaleString()}.`);
+      }
       toast.success('Payment updated');
     } catch (err) {
       toast.error('Failed to update payment');
       console.error(err);
     }
-  }, []);
+  }, [data.payments]);
 
   const recordPayment = useCallback(async (paymentId) => {
+    const payment = data.payments.find(p => p.id === paymentId);
     const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0] };
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
@@ -502,14 +568,18 @@ export function AppProvider({ children }) {
         ...prev,
         payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
       }));
+      if (payment) {
+        logActivity('payment', `₹${payment.amount.toLocaleString()} received from ${payment.tenantName}`);
+      }
       toast.success('Payment recorded');
     } catch (err) {
       toast.error('Failed to record payment');
       console.error(err);
     }
-  }, []);
+  }, [data.payments]);
 
   const revertPayment = useCallback(async (paymentId) => {
+    const payment = data.payments.find(p => p.id === paymentId);
     const updates = { status: 'pending', paidDate: null };
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
@@ -518,14 +588,18 @@ export function AppProvider({ children }) {
         ...prev,
         payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
       }));
+      if (payment) {
+        logActivity('payment', `Payment of ₹${payment.amount.toLocaleString()} undone for ${payment.tenantName}`);
+      }
       toast.success('Payment reverted to pending');
     } catch (err) {
       toast.error('Failed to revert payment');
       console.error(err);
     }
-  }, []);
+  }, [data.payments]);
 
   const deletePayment = useCallback(async (paymentId) => {
+    const payment = data.payments.find(p => p.id === paymentId);
     try {
       const { error } = await supabase.from('payments').delete().eq('id', paymentId);
       if (error) throw error;
@@ -533,12 +607,15 @@ export function AppProvider({ children }) {
         ...prev,
         payments: prev.payments.filter(p => p.id !== paymentId)
       }));
+      if (payment) {
+        logActivity('payment', `WARNING: Payment record of ₹${Number(payment.amount).toLocaleString()} for ${payment.tenantName} was permanently DELETED.`);
+      }
       toast.success('Payment record deleted permanently');
     } catch (err) {
       toast.error('Failed to delete payment');
       console.error(err);
     }
-  }, []);
+  }, [data.payments]);
 
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
@@ -670,6 +747,7 @@ export function AppProvider({ children }) {
       const { error } = await supabase.from('payments').insert(newBills.map(toSnakeCase));
       if (error) throw error;
       setData(prev => ({ ...prev, payments: [...prev.payments, ...newBills] }));
+      logActivity('system', `System automatically generated ${newBills.length} rent bills for ${currentMonth}`);
       toast.success(`Generated ${newBills.length} bills for ${currentMonth}`);
     } catch (err) {
       toast.error('Failed to generate bills');

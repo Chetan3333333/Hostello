@@ -1,8 +1,26 @@
+import React, { useState } from 'react';
 import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
-import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock } from 'lucide-react';
+import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock, Settings, Search, Filter } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
+
+function getRelativeTime(dateString) {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  const diffInSeconds = Math.floor((new Date() - date) / 1000);
+  if (diffInSeconds < 60) return 'Just now';
+  if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)} minutes ago`;
+  if (diffInSeconds < 86400) {
+    const hours = Math.floor(diffInSeconds / 3600);
+    return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+  }
+  const days = Math.floor(diffInSeconds / 86400);
+  if (days === 1) return 'Yesterday';
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return months === 1 ? '1 month ago' : `${months} months ago`;
+}
 
 function CustomTooltip({ active, payload }) {
   if (active && payload && payload.length) {
@@ -16,8 +34,17 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function Dashboard() {
-  const { getStats, currentPayments, currentTenants } = useApp();
+  const { getStats, currentPayments, data } = useApp();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [warningsOnly, setWarningsOnly] = useState(false);
   const stats = getStats();
+  const activityLogs = data.activityLogs || [];
+
+  const filteredLogs = activityLogs.filter(act => {
+    if (warningsOnly && !act.message.includes('WARNING')) return false;
+    if (searchTerm && !act.message.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
 
   // Occupancy pie data
   const occupancyData = [
@@ -41,24 +68,7 @@ export default function Dashboard() {
     return { month, revenue: paid };
   });
 
-  // Recent activity from payments and tenants
-  const recentActivities = [
-    ...currentPayments.filter(p => p.status === 'paid').slice(-3).map(p => ({
-      text: `₹${p.amount.toLocaleString()} received from ${p.tenantName}`,
-      time: p.paidDate,
-      color: 'green',
-    })),
-    ...currentPayments.filter(p => p.status === 'overdue').slice(0, 2).map(p => ({
-      text: `Payment overdue: ${p.tenantName} - Room ${p.roomNumber}`,
-      time: p.dueDate,
-      color: 'red',
-    })),
-    ...currentTenants.slice(-2).map(t => ({
-      text: `${t.name} checked in to Room ${t.roomNumber}`,
-      time: t.checkInDate,
-      color: 'blue',
-    })),
-  ].sort((a, b) => b.time?.localeCompare(a.time)).slice(0, 6);
+  // Removed old scraping method
 
   return (
     <div className="animate-fade">
@@ -135,22 +145,94 @@ export default function Dashboard() {
 
         {/* Recent Activity */}
         <div className="dashboard-card" style={{ animationDelay: '400ms' }}>
-          <div className="dashboard-card-header">
-            <h3>Recent Activity</h3>
+          <div className="dashboard-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0 }}>Audit & Recent Activity</h3>
+              <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', padding: '4px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <button 
+                  onClick={() => setWarningsOnly(false)}
+                  style={{
+                    background: !warningsOnly ? 'rgba(255,255,255,0.1)' : 'transparent',
+                    color: !warningsOnly ? '#fff' : '#6B6B80',
+                    border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', transition: 'all 0.2s ease', fontWeight: !warningsOnly ? 600 : 400
+                  }}
+                >
+                  All Events
+                </button>
+                <button 
+                  onClick={() => setWarningsOnly(true)}
+                  style={{
+                    background: warningsOnly ? 'var(--danger)' : 'transparent',
+                    color: warningsOnly ? '#fff' : '#6B6B80',
+                    border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: warningsOnly ? 600 : 400,
+                    boxShadow: warningsOnly ? '0 2px 8px rgba(255, 71, 87, 0.4)' : 'none'
+                  }}
+                >
+                  <AlertTriangle size={12} />
+                  Warnings
+                </button>
+              </div>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--dark-text-muted)' }} />
+              <input 
+                type="text" 
+                placeholder="Search audit logs by tenant, room, or action..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px 10px 36px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', color: '#fff', fontSize: '0.875rem' }}
+              />
+            </div>
           </div>
-          <div className="activity-feed">
-            {recentActivities.length === 0 ? (
-              <p style={{ color: 'var(--dark-text-muted)', textAlign: 'center', padding: '20px' }}>No recent activity</p>
+          <div className="activity-feed" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '8px', marginTop: '16px' }}>
+            {filteredLogs.length === 0 ? (
+              <p style={{ color: 'var(--dark-text-muted)', textAlign: 'center', padding: '20px' }}>No matching activity logs</p>
             ) : (
-              recentActivities.map((act, i) => (
-                <div className="activity-item" key={i}>
-                  <div className={`activity-dot ${act.color}`}></div>
-                  <div>
-                    <div className="activity-text">{act.text}</div>
-                    <div className="activity-time">{act.time}</div>
+              filteredLogs.map((act, i) => {
+                let Icon = Settings;
+                let dotColor = 'primary';
+                let label = 'System';
+                
+                if (act.type === 'payment') {
+                  Icon = IndianRupee;
+                  if (act.message.toLowerCase().includes('overdue')) dotColor = 'danger';
+                  else if (act.message.toLowerCase().includes('undone') || act.message.toLowerCase().includes('written off')) dotColor = 'warning';
+                  else dotColor = 'success';
+                  label = 'Payment';
+                } else if (act.type === 'tenant') {
+                  Icon = Users;
+                  dotColor = 'accent';
+                  label = 'Tenant';
+                } else if (act.type === 'room') {
+                  Icon = Wrench;
+                  dotColor = 'warning';
+                  label = 'Room';
+                }
+
+                // Global override for ANY security warning
+                if (act.message.includes('WARNING:')) {
+                  dotColor = 'danger';
+                  if (act.type === 'system') {
+                    label = 'Alert';
+                    Icon = AlertTriangle;
+                  }
+                }
+
+                return (
+                  <div className="activity-item" key={act.id || i} style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', padding: '14px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className={`bg-${dotColor}`} style={{ width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, backgroundColor: `var(--${dotColor})`, color: '#fff', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                      <Icon size={18} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <span className={`badge badge-${dotColor}`} style={{ fontSize: '0.65rem', padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#9B9BB4' }}>{getRelativeTime(act.createdAt || act.created_at)}</span>
+                      </div>
+                      <div className="activity-text" style={{ fontSize: '0.875rem', color: '#EEEEF5', lineHeight: '1.5' }}>{act.message}</div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
