@@ -93,7 +93,7 @@ export function AppProvider({ children }) {
       supabase.from('tenants').select('*').eq('hostel_id', hostelId),
       supabase.from('payments').select('*').eq('hostel_id', hostelId),
       supabase.from('staff').select('*').eq('hostel_id', hostelId),
-      supabase.from('activity_logs').select('*').eq('hostel_id', hostelId).order('created_at', { ascending: false }).limit(50)
+      supabase.from('activity_logs').select('*').eq('hostel_id', hostelId).order('created_at', { ascending: false }).limit(500)
     ]);
 
     const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError || activityLogsError;
