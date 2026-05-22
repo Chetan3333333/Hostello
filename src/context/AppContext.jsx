@@ -668,7 +668,26 @@ export function AppProvider({ children }) {
 
   const revertPayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);
-    const updates = { status: 'pending', paidDate: null };
+    
+    let correctStatus = 'pending';
+    if (payment) {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1;
+      const currentDate = now.getDate();
+      
+      const [paymentYearStr, paymentMonthStr] = payment.month.split('-');
+      const paymentYear = parseInt(paymentYearStr, 10);
+      const paymentMonth = parseInt(paymentMonthStr, 10);
+      
+      if (currentYear > paymentYear || (currentYear === paymentYear && currentMonth > paymentMonth)) {
+        correctStatus = 'overdue';
+      } else if (currentYear === paymentYear && currentMonth === paymentMonth && currentDate > 10) {
+        correctStatus = 'overdue';
+      }
+    }
+
+    const updates = { status: correctStatus, paidDate: null };
     try {
       const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
       if (error) throw error;
@@ -679,7 +698,7 @@ export function AppProvider({ children }) {
       if (payment) {
         logActivity('payment', `Payment of ₹${payment.amount.toLocaleString()} undone for ${payment.tenantName}`);
       }
-      toast.success('Payment reverted to pending');
+      toast.success(`Payment reverted to ${correctStatus}`);
     } catch (err) {
       toast.error('Failed to revert payment');
       console.error(err);
