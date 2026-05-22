@@ -639,7 +639,7 @@ export function AppProvider({ children }) {
           ...payment,
           id: `pay-${Date.now()}`,
           amount: remainingAmount,
-          status: 'pending',
+          status: payment.status === 'overdue' ? 'overdue' : 'pending',
           paidDate: null
         };
         promises.push(supabase.from('payments').insert([toSnakeCase(newPayment)]));
