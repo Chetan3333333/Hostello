@@ -6,7 +6,7 @@ import StatCard from '../../components/StatCard';
 import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment, generateMonthlyBills, updatePayment } = useApp();
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment, updatePayment } = useApp();
   const currentMonthStr = new Date().toISOString().substring(0, 7);
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -65,19 +65,6 @@ export default function PaymentTracking() {
       confirmText: 'Write Off Debt',
       onConfirm: () => {
         updatePayment(payment.id, { status: 'written_off' });
-        setConfirmDialog(null);
-      }
-    });
-  };
-
-  const handleGenerateBills = () => {
-    setConfirmDialog({
-      title: 'Generate Monthly Bills',
-      message: `Automatically generate pending bills for all active tenants for the current month (${currentMonthStr})? Students who already have a bill for this month will be skipped safely.`,
-      type: 'success',
-      confirmText: 'Generate Bills',
-      onConfirm: () => {
-        generateMonthlyBills();
         setConfirmDialog(null);
       }
     });
@@ -168,9 +155,6 @@ export default function PaymentTracking() {
       <div className="page-header">
         <h1>Payment Tracking</h1>
         <div className="page-header-actions">
-          <button className="btn btn-primary btn-outline" onClick={handleGenerateBills} style={{ marginRight: '8px' }}>
-            <Plus size={18} /> Generate {currentMonthStr} Bills
-          </button>
           <button className="btn btn-primary" onClick={() => setModalOpen(true)}>
             <Plus size={18} /> Record Payment
           </button>

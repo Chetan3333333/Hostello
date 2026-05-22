@@ -786,52 +786,7 @@ export function AppProvider({ children }) {
     }
   }, [data.staff]);
 
-  const generateMonthlyBills = useCallback(async () => {
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    
-    // 1. Find all active tenants (checkout guard is built into currentTenants filtering)
-    const activeTenants = currentTenants;
-    
-    // 2. Duplication guard: filter out tenants who already have a bill for the current month
-    const tenantsToBill = activeTenants.filter(t => {
-      const hasBill = currentPayments.some(p => p.tenantId === t.id && p.month === currentMonth);
-      return !hasBill;
-    });
 
-    if (tenantsToBill.length === 0) {
-      toast.info('All active tenants already have bills for this month.');
-      return;
-    }
-
-    const dueDate = new Date();
-    dueDate.setDate(5); // 5th of the month due date
-    const dueDateStr = dueDate.toISOString().split('T')[0];
-
-    const newBills = tenantsToBill.map(t => ({
-      id: `p-${Date.now()}-${t.id}`,
-      hostelId: activeHostelId,
-      tenantId: t.id,
-      tenantName: t.name,
-      roomId: t.roomId,
-      roomNumber: t.roomNumber,
-      amount: t.rentAmount,
-      month: currentMonth,
-      dueDate: dueDateStr,
-      status: 'pending'
-    }));
-
-    try {
-      const { error } = await supabase.from('payments').insert(newBills.map(toSnakeCase));
-      if (error) throw error;
-      setData(prev => ({ ...prev, payments: [...prev.payments, ...newBills] }));
-      logActivity('system', `System automatically generated ${newBills.length} rent bills for ${currentMonth}`);
-      toast.success(`Generated ${newBills.length} bills for ${currentMonth}`);
-    } catch (err) {
-      toast.error('Failed to generate bills');
-      console.error(err);
-    }
-  }, [currentTenants, currentPayments, activeHostelId]);
 
   const getStats = useCallback(() => {
     const occupied = currentRooms.filter(r => r.status === 'occupied').length;
@@ -867,7 +822,7 @@ export function AppProvider({ children }) {
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
     addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
-    updateHostel, getStats, generateMonthlyBills, hostels: data.hostels,
+    updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
     addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,
   };
