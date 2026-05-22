@@ -529,8 +529,16 @@ export function AppProvider({ children }) {
 
         const nextPayments = prev.payments.map(p => {
           if (['pending', 'overdue'].includes(p.status) && p.month === currentMonthStr) {
-            if (p.tenantId === tenantA.id) return { ...p, roomNumber: aUpdates.roomNumber, amount: aUpdates.rentAmount };
-            if (p.tenantId === tenantB.id) return { ...p, roomNumber: bUpdates.roomNumber, amount: bUpdates.rentAmount };
+            if (p.tenantId === tenantA.id) {
+              const updates = { roomNumber: aUpdates.roomNumber };
+              if (aBills.length <= 1) updates.amount = aUpdates.rentAmount;
+              return { ...p, ...updates };
+            }
+            if (p.tenantId === tenantB.id) {
+              const updates = { roomNumber: bUpdates.roomNumber };
+              if (bBills.length <= 1) updates.amount = bUpdates.rentAmount;
+              return { ...p, ...updates };
+            }
           }
           return p;
         });
