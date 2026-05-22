@@ -403,15 +403,18 @@ export function AppProvider({ children }) {
         };
 
         // Sync pending/overdue payments with new room number
+        const now = new Date();
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const newRoomNumber = updates.roomNumber || newRoom.number;
         const paymentSyncUpdates = { roomNumber: newRoomNumber };
         promises.push(
           supabase.from('payments')
             .update(toSnakeCase(paymentSyncUpdates))
             .eq('tenant_id', tenantId)
+            .eq('month', currentMonthStr)
             .in('status', ['pending', 'overdue'])
         );
-        stateUpdates.paymentUpdates = { tenantId, roomNumber: newRoomNumber };
+        stateUpdates.paymentUpdates = { tenantId, roomNumber: newRoomNumber, month: currentMonthStr };
       }
     }
 
@@ -448,7 +451,9 @@ export function AppProvider({ children }) {
           nextPayments = nextPayments.map(p => {
             if (p.tenantId === tenantId && ['pending', 'overdue'].includes(p.status)) {
               let updatedP = { ...p };
-              if (stateUpdates.paymentUpdates) updatedP.roomNumber = stateUpdates.paymentUpdates.roomNumber;
+              if (stateUpdates.paymentUpdates && p.month === stateUpdates.paymentUpdates.month) {
+                updatedP.roomNumber = stateUpdates.paymentUpdates.roomNumber;
+              }
               if (stateUpdates.rentUpdates && p.month === stateUpdates.rentUpdates.month) {
                 updatedP.amount = stateUpdates.rentUpdates.amount;
               }
