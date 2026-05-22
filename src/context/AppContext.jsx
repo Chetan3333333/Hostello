@@ -328,16 +328,37 @@ export function AppProvider({ children }) {
       status: calculateRoomStatus(newOccupants, room.capacity, room.status === 'maintenance') 
     };
 
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const dueDate = new Date();
+    dueDate.setDate(5);
+    const dueDateStr = dueDate.toISOString().split('T')[0];
+
+    const newPayment = {
+      id: `p-${Date.now()}-${newTenant.id}`,
+      hostelId: activeHostelId,
+      tenantId: newTenant.id,
+      tenantName: newTenant.name,
+      roomId: newTenant.roomId,
+      roomNumber: newTenant.roomNumber,
+      amount: newTenant.rentAmount,
+      month: currentMonthStr,
+      dueDate: dueDateStr,
+      status: 'pending'
+    };
+
     try {
       await Promise.all([
         supabase.from('tenants').insert([toSnakeCase(newTenant)]),
-        supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id)
+        supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id),
+        supabase.from('payments').insert([toSnakeCase(newPayment)])
       ]);
 
       setData(prev => ({
         ...prev,
         tenants: [...prev.tenants, newTenant],
-        rooms: prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r)
+        rooms: prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r),
+        payments: [newPayment, ...prev.payments]
       }));
       logActivity('tenant', `${newTenant.name} joined Room ${newTenant.roomNumber}`);
       toast.success('Tenant added successfully');
@@ -466,7 +487,9 @@ export function AppProvider({ children }) {
     const aUpdates = { roomId: tenantB.roomId, roomNumber: tenantB.roomNumber, rentAmount: tenantB.rentAmount };
     const bUpdates = { roomId: tenantA.roomId, roomNumber: tenantA.roomNumber, rentAmount: tenantA.rentAmount };
     
-    // Sync payment updates (Pending/Overdue only)
+    // Sync payment updates (Pending/Overdue only, for current month only)
+    const now = new Date();
+    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const aPaymentUpdates = { room_number: tenantB.roomNumber, amount: tenantB.rentAmount };
     const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
 
@@ -474,8 +497,8 @@ export function AppProvider({ children }) {
       const promises = [
         supabase.from('tenants').update(toSnakeCase(aUpdates)).eq('id', tenantA.id),
         supabase.from('tenants').update(toSnakeCase(bUpdates)).eq('id', tenantB.id),
-        supabase.from('payments').update(aPaymentUpdates).eq('tenant_id', tenantA.id).in('status', ['pending', 'overdue']),
-        supabase.from('payments').update(bPaymentUpdates).eq('tenant_id', tenantB.id).in('status', ['pending', 'overdue'])
+        supabase.from('payments').update(aPaymentUpdates).eq('tenant_id', tenantA.id).eq('month', currentMonthStr).in('status', ['pending', 'overdue']),
+        supabase.from('payments').update(bPaymentUpdates).eq('tenant_id', tenantB.id).eq('month', currentMonthStr).in('status', ['pending', 'overdue'])
       ];
 
       await Promise.all(promises);
@@ -488,7 +511,7 @@ export function AppProvider({ children }) {
         });
 
         const nextPayments = prev.payments.map(p => {
-          if (p.status !== 'paid') {
+          if (['pending', 'overdue'].includes(p.status) && p.month === currentMonthStr) {
             if (p.tenantId === tenantA.id) return { ...p, roomNumber: aUpdates.roomNumber, amount: aUpdates.rentAmount };
             if (p.tenantId === tenantB.id) return { ...p, roomNumber: bUpdates.roomNumber, amount: bUpdates.rentAmount };
           }
