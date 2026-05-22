@@ -606,25 +606,52 @@ export function AppProvider({ children }) {
     }
   }, [data.payments]);
 
-  const recordPayment = useCallback(async (paymentId) => {
+  const recordPayment = useCallback(async (paymentId, amountReceived) => {
     const payment = data.payments.find(p => p.id === paymentId);
-    const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0] };
+    if (!payment) return;
+
+    const actualAmount = amountReceived !== undefined ? Number(amountReceived) : payment.amount;
+    const isPartial = actualAmount < payment.amount;
+    const remainingAmount = payment.amount - actualAmount;
+
     try {
-      const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
-      }));
-      if (payment) {
-        logActivity('payment', `₹${payment.amount.toLocaleString()} received from ${payment.tenantName}`);
+      const promises = [];
+      const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0], amount: actualAmount };
+      
+      promises.push(supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId));
+      
+      let newPayment = null;
+      if (isPartial) {
+        newPayment = {
+          ...payment,
+          id: `pay-${Date.now()}`,
+          amount: remainingAmount,
+          status: 'pending',
+          paidDate: null
+        };
+        promises.push(supabase.from('payments').insert([toSnakeCase(newPayment)]));
       }
-      toast.success('Payment recorded');
+
+      await Promise.all(promises);
+
+      setData(prev => {
+        let nextPayments = prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p);
+        if (newPayment) {
+          nextPayments = [newPayment, ...nextPayments];
+        }
+        return { ...prev, payments: nextPayments };
+      });
+
+      logActivity('payment', `₹${actualAmount.toLocaleString()} received from ${payment.tenantName}`);
+      if (isPartial) {
+        logActivity('payment', `Invoice split: New pending bill of ₹${remainingAmount.toLocaleString()} created for ${payment.tenantName}`);
+      }
+      toast.success(isPartial ? 'Partial payment recorded & invoice split' : 'Payment recorded');
     } catch (err) {
       toast.error('Failed to record payment');
       console.error(err);
     }
-  }, [data.payments]);
+  }, [data.payments, logActivity]);
 
   const revertPayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);

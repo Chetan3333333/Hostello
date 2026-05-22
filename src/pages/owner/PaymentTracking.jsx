@@ -28,16 +28,20 @@ export default function PaymentTracking() {
   const totalOverdue = filtered.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
 
   const handleRecordPayment = (payment) => {
-    setConfirmDialog({
-      title: 'Record Payment',
-      message: `Mark ₹${payment.amount.toLocaleString()} from ${payment.tenantName} as paid?`,
-      type: 'success',
-      confirmText: 'Mark Paid',
-      onConfirm: () => {
-        recordPayment(payment.id);
-        setConfirmDialog(null);
-      }
-    });
+    const rawInput = window.prompt(
+      `Recording payment for ${payment.tenantName}.\nTotal bill: ₹${payment.amount.toLocaleString()}.\n\nEnter Amount Received:`, 
+      payment.amount
+    );
+    
+    if (rawInput === null) return;
+    
+    const amountReceived = Number(rawInput);
+    if (isNaN(amountReceived) || amountReceived <= 0 || amountReceived > payment.amount) {
+      alert('Please enter a valid amount up to the total bill amount.');
+      return;
+    }
+
+    recordPayment(payment.id, amountReceived);
   };
 
   const handleRevertPayment = (payment) => {
