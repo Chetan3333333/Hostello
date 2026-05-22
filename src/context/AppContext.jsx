@@ -396,13 +396,16 @@ export function AppProvider({ children }) {
 
     const isRentChanging = updates.rentAmount !== undefined && Number(updates.rentAmount) !== Number(tenant.rentAmount);
     if (isRentChanging) {
+      const now = new Date();
+      const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
       promises.push(
         supabase.from('payments')
           .update(toSnakeCase({ amount: updates.rentAmount }))
           .eq('tenant_id', tenantId)
+          .eq('month', currentMonthStr)
           .in('status', ['pending', 'overdue'])
       );
-      stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount };
+      stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount, month: currentMonthStr };
     }
 
     promises.push(supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId));
@@ -422,10 +425,12 @@ export function AppProvider({ children }) {
         let nextPayments = prev.payments;
         if (stateUpdates.paymentUpdates || stateUpdates.rentUpdates) {
           nextPayments = nextPayments.map(p => {
-            if (p.tenantId === tenantId && p.status !== 'paid') {
+            if (p.tenantId === tenantId && ['pending', 'overdue'].includes(p.status)) {
               let updatedP = { ...p };
               if (stateUpdates.paymentUpdates) updatedP.roomNumber = stateUpdates.paymentUpdates.roomNumber;
-              if (stateUpdates.rentUpdates) updatedP.amount = stateUpdates.rentUpdates.amount;
+              if (stateUpdates.rentUpdates && p.month === stateUpdates.rentUpdates.month) {
+                updatedP.amount = stateUpdates.rentUpdates.amount;
+              }
               return updatedP;
             }
             return p;
