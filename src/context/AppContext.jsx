@@ -276,12 +276,43 @@ export function AppProvider({ children }) {
   const updateRoom = useCallback(async (roomId, updates) => {
     const room = currentRooms.find(r => r.id === roomId);
     try {
-      const { error } = await supabase.from('rooms').update(toSnakeCase(updates)).eq('id', roomId);
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        rooms: prev.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r)
-      }));
+      const promises = [
+        supabase.from('rooms').update(toSnakeCase(updates)).eq('id', roomId)
+      ];
+
+      const isRenaming = updates.number && room && updates.number !== room.number;
+      let currentMonthStr = '';
+      if (isRenaming) {
+        const now = new Date();
+        currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        promises.push(
+          supabase.from('tenants').update({ room_number: updates.number }).eq('room_id', roomId),
+          supabase.from('payments').update({ room_number: updates.number }).eq('room_id', roomId).eq('month', currentMonthStr).in('status', ['pending', 'overdue'])
+        );
+      }
+
+      await Promise.all(promises);
+
+      setData(prev => {
+        let nextTenants = prev.tenants;
+        let nextPayments = prev.payments;
+
+        if (isRenaming) {
+          nextTenants = prev.tenants.map(t => t.roomId === roomId ? { ...t, roomNumber: updates.number } : t);
+          nextPayments = prev.payments.map(p => 
+            (p.roomId === roomId && ['pending', 'overdue'].includes(p.status) && p.month === currentMonthStr)
+              ? { ...p, roomNumber: updates.number }
+              : p
+          );
+        }
+
+        return {
+          ...prev,
+          rooms: prev.rooms.map(r => r.id === roomId ? { ...r, ...updates } : r),
+          tenants: nextTenants,
+          payments: nextPayments
+        };
+      });
       if (room && updates.status) {
         if (updates.status === 'maintenance' && room.status !== 'maintenance') {
           logActivity('room', `Room ${room.number} marked under maintenance`);
