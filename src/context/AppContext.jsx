@@ -394,6 +394,17 @@ export function AppProvider({ children }) {
       }
     }
 
+    const isRentChanging = updates.rentAmount !== undefined && Number(updates.rentAmount) !== Number(tenant.rentAmount);
+    if (isRentChanging) {
+      promises.push(
+        supabase.from('payments')
+          .update(toSnakeCase({ amount: updates.rentAmount }))
+          .eq('tenant_id', tenantId)
+          .in('status', ['pending', 'overdue'])
+      );
+      stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount };
+    }
+
     promises.push(supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId));
 
     try {
@@ -409,10 +420,13 @@ export function AppProvider({ children }) {
           });
         }
         let nextPayments = prev.payments;
-        if (stateUpdates.paymentUpdates) {
+        if (stateUpdates.paymentUpdates || stateUpdates.rentUpdates) {
           nextPayments = nextPayments.map(p => {
-            if (p.tenantId === stateUpdates.paymentUpdates.tenantId && p.status !== 'paid') {
-              return { ...p, roomNumber: stateUpdates.paymentUpdates.roomNumber };
+            if (p.tenantId === tenantId && p.status !== 'paid') {
+              let updatedP = { ...p };
+              if (stateUpdates.paymentUpdates) updatedP.roomNumber = stateUpdates.paymentUpdates.roomNumber;
+              if (stateUpdates.rentUpdates) updatedP.amount = stateUpdates.rentUpdates.amount;
+              return updatedP;
             }
             return p;
           });
