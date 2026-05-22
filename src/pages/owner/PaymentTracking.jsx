@@ -12,6 +12,7 @@ export default function PaymentTracking() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [paymentDialog, setPaymentDialog] = useState(null);
   const [form, setForm] = useState({ tenantId: '', amount: '', month: currentMonthStr, receiptNote: '', status: 'pending' });
 
   const months = [...new Set(currentPayments.map(p => p.month))].sort().reverse();
@@ -28,20 +29,23 @@ export default function PaymentTracking() {
   const totalOverdue = filtered.filter(p => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
 
   const handleRecordPayment = (payment) => {
-    const rawInput = window.prompt(
-      `Recording payment for ${payment.tenantName}.\nTotal bill: ₹${payment.amount.toLocaleString()}.\n\nEnter Amount Received:`, 
-      payment.amount
-    );
+    setPaymentDialog({ payment, amount: payment.amount });
+  };
+
+  const submitRecordPayment = (e) => {
+    e.preventDefault();
+    if (!paymentDialog) return;
     
-    if (rawInput === null) return;
+    const { payment, amount } = paymentDialog;
+    const amountReceived = Number(amount);
     
-    const amountReceived = Number(rawInput);
     if (isNaN(amountReceived) || amountReceived <= 0 || amountReceived > payment.amount) {
       alert('Please enter a valid amount up to the total bill amount.');
       return;
     }
 
     recordPayment(payment.id, amountReceived);
+    setPaymentDialog(null);
   };
 
   const handleRevertPayment = (payment) => {
@@ -246,6 +250,39 @@ export default function PaymentTracking() {
               </button>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Record Payment Dialog */}
+      <Modal isOpen={!!paymentDialog} onClose={() => setPaymentDialog(null)} title="Record Payment" size="sm">
+        {paymentDialog && (
+          <form onSubmit={submitRecordPayment}>
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ margin: 0, color: 'var(--dark-text-secondary)', fontSize: '0.9rem' }}>
+                Recording payment for <strong>{paymentDialog.payment.tenantName}</strong>.
+              </p>
+              <p style={{ margin: '4px 0 0 0', color: 'var(--dark-text-secondary)', fontSize: '0.9rem' }}>
+                Total bill: <strong>₹{paymentDialog.payment.amount.toLocaleString()}</strong>
+              </p>
+            </div>
+            <div className="form-group" style={{ marginBottom: '24px' }}>
+              <label>Amount Received (₹) *</label>
+              <input 
+                type="number" 
+                min="1" 
+                max={paymentDialog.payment.amount}
+                className="form-input" 
+                value={paymentDialog.amount} 
+                onChange={e => setPaymentDialog({...paymentDialog, amount: e.target.value})} 
+                required 
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setPaymentDialog(null)}>Cancel</button>
+              <button type="submit" className="btn btn-success">Save Payment</button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

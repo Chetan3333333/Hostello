@@ -423,14 +423,18 @@ export function AppProvider({ children }) {
     if (isRentChanging) {
       const now = new Date();
       const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      promises.push(
-        supabase.from('payments')
-          .update(toSnakeCase({ amount: updates.rentAmount }))
-          .eq('tenant_id', tenantId)
-          .eq('month', currentMonthStr)
-          .in('status', ['pending', 'overdue'])
-      );
-      stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount, month: currentMonthStr };
+      
+      const tenantBillsThisMonth = data.payments.filter(p => p.tenantId === tenantId && p.month === currentMonthStr);
+      if (tenantBillsThisMonth.length <= 1) {
+        promises.push(
+          supabase.from('payments')
+            .update(toSnakeCase({ amount: updates.rentAmount }))
+            .eq('tenant_id', tenantId)
+            .eq('month', currentMonthStr)
+            .in('status', ['pending', 'overdue'])
+        );
+        stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount, month: currentMonthStr };
+      }
     }
 
     promises.push(supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId));
@@ -496,8 +500,15 @@ export function AppProvider({ children }) {
     // Sync payment updates (Pending/Overdue only, for current month only)
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const aPaymentUpdates = { room_number: tenantB.roomNumber, amount: tenantB.rentAmount };
-    const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
+    
+    const aBills = data.payments.filter(p => p.tenantId === tenantA.id && p.month === currentMonthStr);
+    const bBills = data.payments.filter(p => p.tenantId === tenantB.id && p.month === currentMonthStr);
+
+    const aPaymentUpdates = { room_number: tenantB.roomNumber };
+    if (aBills.length <= 1) aPaymentUpdates.amount = tenantB.rentAmount;
+    
+    const bPaymentUpdates = { room_number: tenantA.roomNumber };
+    if (bBills.length <= 1) bPaymentUpdates.amount = tenantA.rentAmount;
 
     try {
       const promises = [
