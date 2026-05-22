@@ -287,7 +287,7 @@ export function AppProvider({ children }) {
         currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         promises.push(
           supabase.from('tenants').update({ room_number: updates.number }).eq('room_id', roomId),
-          supabase.from('payments').update({ room_number: updates.number }).eq('room_id', roomId).eq('month', currentMonthStr).in('status', ['pending', 'overdue'])
+          supabase.from('payments').update({ room_number: updates.number }).eq('room_id', roomId).eq('month', currentMonthStr)
         );
       }
 
@@ -300,7 +300,7 @@ export function AppProvider({ children }) {
         if (isRenaming) {
           nextTenants = prev.tenants.map(t => t.roomId === roomId ? { ...t, roomNumber: updates.number } : t);
           nextPayments = prev.payments.map(p => 
-            (p.roomId === roomId && ['pending', 'overdue'].includes(p.status) && p.month === currentMonthStr)
+            (p.roomId === roomId && p.month === currentMonthStr)
               ? { ...p, roomNumber: updates.number }
               : p
           );
