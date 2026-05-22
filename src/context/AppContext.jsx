@@ -102,36 +102,6 @@ export function AppProvider({ children }) {
     const mappedHostel = mapKeys([hostelData])[0];
     setOwnerProfile({ userId, hostelId });
     
-    // Auto-Overdue Logic: Check for pending bills where due date has passed
-    let mappedPayments = mapKeys(paymentsData);
-    const todayStr = new Date().toISOString().split('T')[0];
-    const newlyOverdue = mappedPayments.filter(p => p.status === 'pending' && p.dueDate && p.dueDate < todayStr);
-    
-    if (newlyOverdue.length > 0) {
-      mappedPayments = mappedPayments.map(p => 
-        (p.status === 'pending' && p.dueDate && p.dueDate < todayStr) ? { ...p, status: 'overdue' } : p
-      );
-      
-      const overdueIds = newlyOverdue.map(p => p.id);
-      // Fire-and-forget DB update
-      supabase.from('payments')
-        .update({ status: 'overdue' })
-        .in('id', overdueIds)
-        .then(({ error }) => {
-          if (error) {
-            console.error('Failed to auto-update overdue status', error);
-          } else {
-            const logs = newlyOverdue.map(p => ({
-              hostel_id: hostelId,
-              type: 'system',
-              message: `System automatically marked rent overdue for ${p.tenantName || 'Tenant'}, Room ${p.roomNumber || '?'}`,
-              created_at: new Date().toISOString()
-            }));
-            supabase.from('activity_logs').insert(logs).then(() => {});
-          }
-        });
-    }
-
     setData(prev => ({
       hostels: [
         ...prev.hostels.filter(h => h.id !== hostelId),
@@ -142,7 +112,7 @@ export function AppProvider({ children }) {
         ...mapKeys(roomsData)
       ],
       tenants: mapKeys(tenantsData),
-      payments: mappedPayments,
+      payments: mapKeys(paymentsData),
       staff: mapKeys(staffData),
       activityLogs: mapKeys(activityLogsData || [])
     }));
