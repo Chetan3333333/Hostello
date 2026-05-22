@@ -504,11 +504,13 @@ export function AppProvider({ children }) {
     const aBills = data.payments.filter(p => p.tenantId === tenantA.id && p.month === currentMonthStr);
     const bBills = data.payments.filter(p => p.tenantId === tenantB.id && p.month === currentMonthStr);
 
-    const aPaymentUpdates = { room_number: tenantB.roomNumber };
-    if (aBills.length <= 1) aPaymentUpdates.amount = tenantB.rentAmount;
-    
-    const bPaymentUpdates = { room_number: tenantA.roomNumber };
-    if (bBills.length <= 1) bPaymentUpdates.amount = tenantA.rentAmount;
+    if (aBills.length > 1 || bBills.length > 1) {
+      toast.error('Cannot swap tenants with partial payments. Settle bills first.');
+      return;
+    }
+
+    const aPaymentUpdates = { room_number: tenantB.roomNumber, amount: tenantB.rentAmount };
+    const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
 
     try {
       const promises = [
@@ -529,16 +531,8 @@ export function AppProvider({ children }) {
 
         const nextPayments = prev.payments.map(p => {
           if (['pending', 'overdue'].includes(p.status) && p.month === currentMonthStr) {
-            if (p.tenantId === tenantA.id) {
-              const updates = { roomNumber: aUpdates.roomNumber };
-              if (aBills.length <= 1) updates.amount = aUpdates.rentAmount;
-              return { ...p, ...updates };
-            }
-            if (p.tenantId === tenantB.id) {
-              const updates = { roomNumber: bUpdates.roomNumber };
-              if (bBills.length <= 1) updates.amount = bUpdates.rentAmount;
-              return { ...p, ...updates };
-            }
+            if (p.tenantId === tenantA.id) return { ...p, roomNumber: aUpdates.roomNumber, amount: aUpdates.rentAmount };
+            if (p.tenantId === tenantB.id) return { ...p, roomNumber: bUpdates.roomNumber, amount: bUpdates.rentAmount };
           }
           return p;
         });
