@@ -2,7 +2,9 @@
 -- 1. TRIGGER FOR ROOMS TABLE (Upgraded with Security Patch)
 -- =========================================================================
 CREATE OR REPLACE FUNCTION log_room_activity()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
     INSERT INTO activity_logs (hostel_id, type, message, created_at)
@@ -52,7 +54,9 @@ FOR EACH ROW EXECUTE FUNCTION log_room_activity();
 -- 2. TRIGGER FOR TENANTS TABLE
 -- =========================================================================
 CREATE OR REPLACE FUNCTION log_tenant_activity()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
     INSERT INTO activity_logs (hostel_id, type, message, created_at)
@@ -90,7 +94,9 @@ FOR EACH ROW EXECUTE FUNCTION log_tenant_activity();
 -- 3. TRIGGER FOR PAYMENTS TABLE
 -- =========================================================================
 CREATE OR REPLACE FUNCTION log_payment_activity()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SECURITY DEFINER
+AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
     IF (NEW.status = 'pending') THEN
@@ -110,11 +116,11 @@ BEGIN
       INSERT INTO activity_logs (hostel_id, type, message, created_at)
       VALUES (NEW.hostel_id, 'payment', 'WARNING: Pending bill amount for ' || NEW.tenant_name || ' was altered from ₹' || OLD.amount || ' to ₹' || NEW.amount || '.', NOW());
     END IF;
-    IF (OLD.status = 'pending' AND NEW.status = 'paid') THEN
+    IF ((OLD.status = 'pending' OR OLD.status = 'overdue') AND NEW.status = 'paid') THEN
       INSERT INTO activity_logs (hostel_id, type, message, created_at)
       VALUES (NEW.hostel_id, 'payment', '₹' || NEW.amount || ' received from ' || NEW.tenant_name, NOW());
     END IF;
-    IF (OLD.status = 'paid' AND NEW.status = 'pending') THEN
+    IF (OLD.status = 'paid' AND (NEW.status = 'pending' OR NEW.status = 'overdue')) THEN
       INSERT INTO activity_logs (hostel_id, type, message, created_at)
       VALUES (NEW.hostel_id, 'payment', 'WARNING: Payment of ₹' || NEW.amount || ' undone for ' || NEW.tenant_name, NOW());
     END IF;

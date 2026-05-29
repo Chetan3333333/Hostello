@@ -246,22 +246,14 @@ export function AppProvider({ children }) {
   const updateRoom = useCallback(async (roomId, updates) => {
     const room = currentRooms.find(r => r.id === roomId);
     try {
-      const promises = [
-        supabase.from('rooms').update(toSnakeCase(updates)).eq('id', roomId)
-      ];
-
-      const isRenaming = updates.number && room && updates.number !== room.number;
-      let currentMonthStr = '';
-      if (isRenaming) {
-        const now = new Date();
-        currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        promises.push(
-          supabase.from('tenants').update({ room_number: updates.number }).eq('room_id', roomId),
-          supabase.from('payments').update({ room_number: updates.number }).eq('room_id', roomId).eq('month', currentMonthStr)
-        );
-      }
-
-      await Promise.all(promises);
+      const isRenaming = !!(updates.number && room && updates.number !== room.number);
+      
+      const { error } = await supabase.rpc('update_room_transaction', {
+        p_room_id: roomId,
+        p_updates: toSnakeCase(updates),
+        p_rename: isRenaming
+      });
+      if (error) throw error;
 
       setData(prev => {
         let nextTenants = prev.tenants;
@@ -270,7 +262,7 @@ export function AppProvider({ children }) {
         if (isRenaming) {
           nextTenants = prev.tenants.map(t => t.roomId === roomId ? { ...t, roomNumber: updates.number } : t);
           nextPayments = prev.payments.map(p => 
-            (p.roomId === roomId && p.month === currentMonthStr)
+            p.roomId === roomId
               ? { ...p, roomNumber: updates.number }
               : p
           );
@@ -349,11 +341,13 @@ export function AppProvider({ children }) {
     };
 
     try {
-      await Promise.all([
-        supabase.from('tenants').insert([toSnakeCase(newTenant)]),
-        supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id),
-        supabase.from('payments').insert([toSnakeCase(newPayment)])
-      ]);
+      const { error } = await supabase.rpc('add_tenant_transaction', {
+        p_tenant: toSnakeCase(newTenant),
+        p_payment: toSnakeCase(newPayment),
+        p_room_updates: toSnakeCase(roomUpdates),
+        p_room_id: room.id
+      });
+      if (error) throw error;
 
       setData(prev => ({
         ...prev,
@@ -373,11 +367,9 @@ export function AppProvider({ children }) {
     const tenant = data.tenants.find(t => t.id === tenantId);
     if (!tenant) return;
 
-    let promises = [];
-    let stateUpdates = { rooms: null, paymentUpdates: null };
+    let stateUpdates = { rooms: null, paymentUpdates: null, rentUpdates: null };
 
-    // Check if room is changing
-    const isRoomChanging = updates.roomId && updates.roomId !== tenant.roomId;
+    const isRoomChanging = !!(updates.roomId && updates.roomId !== tenant.roomId);
     if (isRoomChanging) {
       const oldRoom = currentRooms.find(r => r.id === tenant.roomId);
       const newRoom = currentRooms.find(r => r.id === updates.roomId);
@@ -395,26 +387,14 @@ export function AppProvider({ children }) {
           status: calculateRoomStatus(newOccupants, newRoom.capacity, newRoom.status === 'maintenance') 
         };
 
-        promises.push(supabase.from('rooms').update(toSnakeCase(oldRoomUpdates)).eq('id', oldRoom.id));
-        promises.push(supabase.from('rooms').update(toSnakeCase(newRoomUpdates)).eq('id', newRoom.id));
-
         stateUpdates.rooms = {
           old: { id: oldRoom.id, updates: oldRoomUpdates },
           new: { id: newRoom.id, updates: newRoomUpdates }
         };
 
-        // Sync pending/overdue payments with new room number
         const now = new Date();
         const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
         const newRoomNumber = updates.roomNumber || newRoom.number;
-        const paymentSyncUpdates = { roomNumber: newRoomNumber };
-        promises.push(
-          supabase.from('payments')
-            .update(toSnakeCase(paymentSyncUpdates))
-            .eq('tenant_id', tenantId)
-            .eq('month', currentMonthStr)
-            .in('status', ['pending', 'overdue'])
-        );
         stateUpdates.paymentUpdates = { tenantId, roomNumber: newRoomNumber, month: currentMonthStr };
       }
     }
@@ -426,21 +406,29 @@ export function AppProvider({ children }) {
       
       const tenantBillsThisMonth = data.payments.filter(p => p.tenantId === tenantId && p.month === currentMonthStr);
       if (tenantBillsThisMonth.length <= 1) {
-        promises.push(
-          supabase.from('payments')
-            .update(toSnakeCase({ amount: updates.rentAmount }))
-            .eq('tenant_id', tenantId)
-            .eq('month', currentMonthStr)
-            .in('status', ['pending', 'overdue'])
-        );
         stateUpdates.rentUpdates = { tenantId, amount: updates.rentAmount, month: currentMonthStr };
       }
     }
 
-    promises.push(supabase.from('tenants').update(toSnakeCase(updates)).eq('id', tenantId));
-
     try {
-      await Promise.all(promises);
+      const rpcPayload = {
+        p_tenant_id: tenantId,
+        p_tenant_updates: toSnakeCase(updates),
+        p_room_changed: isRoomChanging,
+        p_old_room_id: isRoomChanging ? stateUpdates.rooms.old.id : null,
+        p_new_room_id: isRoomChanging ? stateUpdates.rooms.new.id : null,
+        p_old_room_occupants: isRoomChanging ? stateUpdates.rooms.old.updates.currentOccupants : null,
+        p_new_room_occupants: isRoomChanging ? stateUpdates.rooms.new.updates.currentOccupants : null,
+        p_old_room_status: isRoomChanging ? stateUpdates.rooms.old.updates.status : null,
+        p_new_room_status: isRoomChanging ? stateUpdates.rooms.new.updates.status : null,
+        p_new_room_number: isRoomChanging ? stateUpdates.paymentUpdates.roomNumber : null,
+        p_rent_changed: isRentChanging,
+        p_new_rent_amount: isRentChanging ? stateUpdates.rentUpdates?.amount || updates.rentAmount : null,
+        p_current_month: isRoomChanging ? stateUpdates.paymentUpdates.month : (isRentChanging ? stateUpdates.rentUpdates?.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` : null)
+      };
+
+      const { error } = await supabase.rpc('update_tenant_transaction', rpcPayload);
+      if (error) throw error;
       
       setData(prev => {
         let nextRooms = prev.rooms;
@@ -513,14 +501,18 @@ export function AppProvider({ children }) {
     const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
 
     try {
-      const promises = [
-        supabase.from('tenants').update(toSnakeCase(aUpdates)).eq('id', tenantA.id),
-        supabase.from('tenants').update(toSnakeCase(bUpdates)).eq('id', tenantB.id),
-        supabase.from('payments').update(aPaymentUpdates).eq('tenant_id', tenantA.id).eq('month', currentMonthStr).in('status', ['pending', 'overdue']),
-        supabase.from('payments').update(bPaymentUpdates).eq('tenant_id', tenantB.id).eq('month', currentMonthStr).in('status', ['pending', 'overdue'])
-      ];
-
-      await Promise.all(promises);
+      const { error } = await supabase.rpc('swap_tenants_transaction', {
+        p_tenant_a_id: tenantA.id,
+        p_tenant_b_id: tenantB.id,
+        p_a_room_id: tenantB.roomId,
+        p_a_room_number: tenantB.roomNumber,
+        p_a_rent_amount: tenantB.rentAmount,
+        p_b_room_id: tenantA.roomId,
+        p_b_room_number: tenantA.roomNumber,
+        p_b_rent_amount: tenantA.rentAmount,
+        p_current_month: currentMonthStr
+      });
+      if (error) throw error;
 
       setData(prev => {
         const nextTenants = prev.tenants.map(t => {
@@ -551,7 +543,14 @@ export function AppProvider({ children }) {
     const tenant = data.tenants.find(t => t.id === tenantId);
     if (!tenant) return;
 
-    const tenantUpdates = { isActive: false, checkOutDate: new Date().toISOString().split('T')[0] };
+    // Strict Blocker: Prevent checkout if tenant has unpaid bills
+    const unpaidBills = data.payments.filter(p => p.tenantId === tenantId && ['pending', 'overdue'].includes(p.status));
+    if (unpaidBills.length > 0) {
+      toast.error(`Cannot check out tenant. ${tenant.name} still has unpaid bills. Please collect the pending rent or manually mark the bills as written-off before checking them out.`, { duration: 6000 });
+      return;
+    }
+
+    const checkoutDate = new Date().toISOString().split('T')[0];
     const room = currentRooms.find(r => r.id === tenant.roomId);
 
     let roomUpdates = null;
@@ -564,15 +563,18 @@ export function AppProvider({ children }) {
     }
 
     try {
-      const promises = [supabase.from('tenants').update(toSnakeCase(tenantUpdates)).eq('id', tenantId)];
-      if (roomUpdates) {
-        promises.push(supabase.from('rooms').update(toSnakeCase(roomUpdates)).eq('id', room.id));
-      }
-      await Promise.all(promises);
+      const { error } = await supabase.rpc('checkout_tenant_transaction', {
+        p_tenant_id: tenantId,
+        p_checkout_date: checkoutDate,
+        p_room_id: room ? room.id : null,
+        p_new_occupants: roomUpdates ? roomUpdates.currentOccupants : null,
+        p_room_status: roomUpdates ? roomUpdates.status : null
+      });
+      if (error) throw error;
 
       setData(prev => ({
         ...prev,
-        tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, ...tenantUpdates } : t),
+        tenants: prev.tenants.map(t => t.id === tenantId ? { ...t, isActive: false, checkOutDate: checkoutDate } : t),
         rooms: roomUpdates ? prev.rooms.map(r => r.id === room.id ? { ...r, ...roomUpdates } : r) : prev.rooms
       }));
       logActivity('tenant', `${tenant.name} checked out from Room ${tenant.roomNumber}`);
@@ -628,24 +630,34 @@ export function AppProvider({ children }) {
     const remainingAmount = payment.amount - actualAmount;
 
     try {
-      const promises = [];
-      const updates = { status: 'paid', paidDate: new Date().toISOString().split('T')[0], amount: actualAmount };
-      
-      promises.push(supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId));
+      const today = new Date().toISOString().split('T')[0];
+      const updates = { status: 'paid', paidDate: today, amount: actualAmount };
       
       let newPayment = null;
       if (isPartial) {
         newPayment = {
-          ...payment,
           id: `pay-${Date.now()}`,
+          hostelId: payment.hostelId,
+          tenantId: payment.tenantId,
+          tenantName: payment.tenantName,
+          roomId: payment.roomId,
+          roomNumber: payment.roomNumber,
           amount: remainingAmount,
+          month: payment.month,
           status: payment.status === 'overdue' ? 'overdue' : 'pending',
-          paidDate: null
+          createdAt: today
         };
-        promises.push(supabase.from('payments').insert([toSnakeCase(newPayment)]));
       }
 
-      await Promise.all(promises);
+      // Update original payment to paid
+      const { error: updateError } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
+      if (updateError) throw updateError;
+
+      // Insert remainder bill for split invoices
+      if (newPayment) {
+        const { error: insertError } = await supabase.from('payments').insert([toSnakeCase(newPayment)]);
+        if (insertError) throw insertError;
+      }
 
       setData(prev => {
         let nextPayments = prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p);

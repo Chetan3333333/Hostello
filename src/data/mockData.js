@@ -38,7 +38,7 @@ function generateRooms(hostel) {
     for (let r = 0; r < Math.min(6, hostel.totalRooms - (floor - 1) * 6); r++) {
       const type = types[r % types.length];
       const status = statuses[(floor * 6 + r) % statuses.length];
-      const capacity = parseInt(type.charAt(0));
+      const capacity = parseInt(type.split('_')[0]);
       rooms.push({
         id: `${hostel.id}-r${roomNum}`,
         hostelId: hostel.id,

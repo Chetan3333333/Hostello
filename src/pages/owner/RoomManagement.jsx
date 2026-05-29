@@ -23,7 +23,7 @@ export default function RoomManagement() {
   const floors = [...new Set(currentRooms.map(r => r.floor))].sort();
 
   const getCapacityFromType = (type) => {
-    const num = parseInt(type.charAt(0));
+    const num = parseInt(type.split('_')[0]);
     return isNaN(num) ? 3 : num;
   };
 

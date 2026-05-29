@@ -1,0 +1,107 @@
+-- =========================================================================
+-- ATOMIC TRANSACTIONS (ELIMINATING DATA DRIFT)
+-- =========================================================================
+
+-- 1. UPDATE ROOM TRANSACTION
+CREATE OR REPLACE FUNCTION update_room_transaction(
+  p_room_id text,
+  p_updates jsonb,
+  p_rename boolean
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+  -- Update the room (only overwrite fields if they exist in the JSON payload)
+  UPDATE rooms 
+  SET 
+    number = CASE WHEN p_updates ? 'number' THEN p_updates->>'number' ELSE number END,
+    capacity = CASE WHEN p_updates ? 'capacity' THEN (p_updates->>'capacity')::int ELSE capacity END,
+    price = CASE WHEN p_updates ? 'price' THEN (p_updates->>'price')::numeric ELSE price END,
+    type = CASE WHEN p_updates ? 'type' THEN p_updates->>'type' ELSE type END,
+    amenities = CASE WHEN p_updates ? 'amenities' THEN p_updates->'amenities' ELSE amenities END,
+    status = CASE WHEN p_updates ? 'status' THEN p_updates->>'status' ELSE status END,
+    current_occupants = CASE WHEN p_updates ? 'current_occupants' THEN (p_updates->>'current_occupants')::int ELSE current_occupants END
+  WHERE id = p_room_id;
+
+  -- If renaming, cascade the name change to ALL tenants and ALL payments
+  IF p_rename THEN
+    UPDATE tenants
+    SET room_number = p_updates->>'number'
+    WHERE room_id = p_room_id;
+    
+    UPDATE payments
+    SET room_number = p_updates->>'number'
+    WHERE room_id = p_room_id;
+  END IF;
+END;
+$$;
+
+-- 2. SWAP TENANTS TRANSACTION
+CREATE OR REPLACE FUNCTION swap_tenants_transaction(
+  p_tenant_a_id text,
+  p_tenant_b_id text,
+  p_a_room_id text,
+  p_a_room_number text,
+  p_a_rent_amount numeric,
+  p_b_room_id text,
+  p_b_room_number text,
+  p_b_rent_amount numeric,
+  p_current_month text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+  -- Swap Tenants
+  UPDATE tenants 
+  SET room_id = p_a_room_id, room_number = p_a_room_number, rent_amount = p_a_rent_amount 
+  WHERE id = p_tenant_a_id;
+  
+  UPDATE tenants 
+  SET room_id = p_b_room_id, room_number = p_b_room_number, rent_amount = p_b_rent_amount 
+  WHERE id = p_tenant_b_id;
+
+  -- Swap pending/overdue payments for current month
+  UPDATE payments 
+  SET room_number = p_a_room_number, amount = p_a_rent_amount 
+  WHERE tenant_id = p_tenant_a_id AND month = p_current_month AND status IN ('pending', 'overdue');
+  
+  UPDATE payments 
+  SET room_number = p_b_room_number, amount = p_b_rent_amount 
+  WHERE tenant_id = p_tenant_b_id AND month = p_current_month AND status IN ('pending', 'overdue');
+END;
+$$;
+
+-- 3. CHECKOUT TENANT TRANSACTION
+CREATE OR REPLACE FUNCTION checkout_tenant_transaction(
+  p_tenant_id text,
+  p_checkout_date text,
+  p_room_id text,
+  p_new_occupants int,
+  p_room_status text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+  -- 1. Checkout Tenant
+  UPDATE tenants 
+  SET is_active = false, check_out_date = p_checkout_date 
+  WHERE id = p_tenant_id;
+
+  -- 2. Update Room Occupancy
+  IF p_room_id IS NOT NULL THEN
+    UPDATE rooms 
+    SET current_occupants = p_new_occupants, status = p_room_status 
+    WHERE id = p_room_id;
+  END IF;
+END;
+$$;
+
+-- 4. CLEANUP: Remove record_payment_transaction (reverted to direct calls)
+DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, text, jsonb);
+DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, jsonb);
