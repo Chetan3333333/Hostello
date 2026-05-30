@@ -26,6 +26,7 @@ begin
     -- JOB 2: On the 1st of the month, generate new invoices for all active tenants
     if extract(day from current_ist_date) = 1 then
         insert into public.payments (
+            id,
             tenant_id, 
             tenant_name, 
             room_number, 
@@ -37,6 +38,7 @@ begin
             receipt_note
         )
         select 
+            'pay-cron-' || id || '-' || current_month_str,
             id, 
             name, 
             room_number, 

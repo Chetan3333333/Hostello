@@ -90,7 +90,7 @@ AS $$
 BEGIN
   -- 1. Checkout Tenant
   UPDATE tenants 
-  SET is_active = false, check_out_date = p_checkout_date 
+  SET is_active = false, check_out_date = p_checkout_date::date
   WHERE id = p_tenant_id;
 
   -- 2. Update Room Occupancy

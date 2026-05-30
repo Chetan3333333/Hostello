@@ -262,7 +262,7 @@ export function AppProvider({ children }) {
         if (isRenaming) {
           nextTenants = prev.tenants.map(t => t.roomId === roomId ? { ...t, roomNumber: updates.number } : t);
           nextPayments = prev.payments.map(p => 
-            p.roomId === roomId
+            p.roomNumber === room.number
               ? { ...p, roomNumber: updates.number }
               : p
           );
@@ -332,7 +332,6 @@ export function AppProvider({ children }) {
       hostelId: activeHostelId,
       tenantId: newTenant.id,
       tenantName: newTenant.name,
-      roomId: newTenant.roomId,
       roomNumber: newTenant.roomNumber,
       amount: newTenant.rentAmount,
       month: currentMonthStr,
@@ -473,7 +472,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to update tenant');
       console.error(err);
     }
-  }, [data.tenants, currentRooms]);
+  }, [data.tenants, currentRooms, data.payments]);
 
   const swapTenants = useCallback(async (tenantAId, tenantBId) => {
     const tenantA = data.tenants.find(t => t.id === tenantAId);
@@ -496,9 +495,6 @@ export function AppProvider({ children }) {
       toast.error('Cannot swap tenants with partial payments. Settle bills first.');
       return;
     }
-
-    const aPaymentUpdates = { room_number: tenantB.roomNumber, amount: tenantB.rentAmount };
-    const bPaymentUpdates = { room_number: tenantA.roomNumber, amount: tenantA.rentAmount };
 
     try {
       const { error } = await supabase.rpc('swap_tenants_transaction', {
@@ -537,7 +533,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to swap rooms');
       console.error(err);
     }
-  }, [data.tenants]);
+  }, [data.tenants, data.payments]);
 
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
@@ -583,7 +579,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to checkout tenant');
       console.error(err);
     }
-  }, [data.tenants, currentRooms]);
+  }, [data.tenants, currentRooms, data.payments]);
 
   const addPayment = useCallback(async (payment) => {
     const newPayment = { ...payment, id: `pay-${Date.now()}`, hostelId: activeHostelId };
@@ -640,7 +636,6 @@ export function AppProvider({ children }) {
           hostelId: payment.hostelId,
           tenantId: payment.tenantId,
           tenantName: payment.tenantName,
-          roomId: payment.roomId,
           roomNumber: payment.roomNumber,
           amount: remainingAmount,
           month: payment.month,
