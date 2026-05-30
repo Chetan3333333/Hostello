@@ -105,3 +105,4 @@ $$;
 -- 4. CLEANUP: Remove record_payment_transaction (reverted to direct calls)
 DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, text, jsonb);
 DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, jsonb);
+DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, date, jsonb);
