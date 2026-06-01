@@ -324,7 +324,7 @@ export function AppProvider({ children }) {
     const now = new Date();
     const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const dueDate = new Date();
-    dueDate.setDate(5);
+    dueDate.setDate(10);
     const dueDateStr = dueDate.toISOString().split('T')[0];
 
     const newPayment = {
