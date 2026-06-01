@@ -5,6 +5,10 @@ import { useApp } from '../../hooks/useApp';
 import { amenityLabels } from '../../data/mockData';
 import '../../styles/student.css';
 
+const getMinPrice = (pricing) => {
+  return pricing && Object.keys(pricing).length > 0 ? Math.min(...Object.values(pricing)) : 0;
+};
+
 export default function HostelSearch() {
   const { data } = useApp();
   const [search, setSearch] = useState('');
@@ -22,15 +26,15 @@ export default function HostelSearch() {
     }
     if (typeFilter !== 'all') result = result.filter(h => h.type === typeFilter);
     result = result.filter(h => {
-      const minPrice = Math.min(...Object.values(h.pricing));
+      const minPrice = getMinPrice(h.pricing);
       return minPrice >= priceRange[0] && minPrice <= priceRange[1];
     });
     if (amenityFilter.length > 0) {
       result = result.filter(h => amenityFilter.every(a => h.amenities.includes(a)));
     }
 
-    if (sortBy === 'price-low') result.sort((a, b) => Math.min(...Object.values(a.pricing)) - Math.min(...Object.values(b.pricing)));
-    else if (sortBy === 'price-high') result.sort((a, b) => Math.min(...Object.values(b.pricing)) - Math.min(...Object.values(a.pricing)));
+    if (sortBy === 'price-low') result.sort((a, b) => getMinPrice(a.pricing) - getMinPrice(b.pricing));
+    else if (sortBy === 'price-high') result.sort((a, b) => getMinPrice(b.pricing) - getMinPrice(a.pricing));
     else if (sortBy === 'rating') result.sort((a, b) => b.rating - a.rating);
 
     return result;
@@ -139,7 +143,7 @@ export default function HostelSearch() {
                   <div className="hostel-search-bottom">
                     <div>
                       <span className="price-from">Starting from</span>
-                      <span className="price-amount">₹{Math.min(...Object.values(hostel.pricing)).toLocaleString()}<span className="price-period">/month</span></span>
+                      <span className="price-amount">₹{getMinPrice(hostel.pricing).toLocaleString()}<span className="price-period">/month</span></span>
                     </div>
                     <span className="view-details-btn">View Details <ArrowRight size={14} /></span>
                   </div>
