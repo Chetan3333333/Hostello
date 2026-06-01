@@ -241,7 +241,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to add room');
       console.error(err);
     }
-  }, [activeHostelId]);
+  }, [activeHostelId, logActivity]);
 
   const updateRoom = useCallback(async (roomId, updates) => {
     const room = currentRooms.find(r => r.id === roomId);
@@ -287,7 +287,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to update room');
       console.error(err);
     }
-  }, [currentRooms]);
+  }, [currentRooms, logActivity]);
 
   const deleteRoom = useCallback(async (roomId) => {
     const room = currentRooms.find(r => r.id === roomId);
@@ -307,7 +307,7 @@ export function AppProvider({ children }) {
         console.error(err);
       }
     }
-  }, [currentRooms]);
+  }, [currentRooms, logActivity]);
 
   const addTenant = useCallback(async (tenant) => {
     const newTenant = { ...tenant, id: `t-${Date.now()}`, hostelId: activeHostelId, isActive: true };
@@ -360,7 +360,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to add tenant');
       console.error(err);
     }
-  }, [activeHostelId, currentRooms]);
+  }, [activeHostelId, currentRooms, logActivity]);
 
   const updateTenant = useCallback(async (tenantId, updates) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
@@ -472,7 +472,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to update tenant');
       console.error(err);
     }
-  }, [data.tenants, currentRooms, data.payments]);
+  }, [data.tenants, currentRooms, data.payments, logActivity]);
 
   const swapTenants = useCallback(async (tenantAId, tenantBId) => {
     const tenantA = data.tenants.find(t => t.id === tenantAId);
@@ -533,7 +533,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to swap rooms');
       console.error(err);
     }
-  }, [data.tenants, data.payments]);
+  }, [data.tenants, data.payments, logActivity]);
 
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
@@ -579,7 +579,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to checkout tenant');
       console.error(err);
     }
-  }, [data.tenants, currentRooms, data.payments]);
+  }, [data.tenants, currentRooms, data.payments, logActivity]);
 
   const addPayment = useCallback(async (payment) => {
     const newPayment = { ...payment, id: `pay-${Date.now()}`, hostelId: activeHostelId };
@@ -593,7 +593,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to add payment');
       console.error(err);
     }
-  }, [activeHostelId]);
+  }, [activeHostelId, logActivity]);
 
   const updatePayment = useCallback(async (paymentId, updates) => {
     const payment = data.payments.find(p => p.id === paymentId);
@@ -615,7 +615,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to update payment');
       console.error(err);
     }
-  }, [data.payments]);
+  }, [data.payments, logActivity]);
 
   const recordPayment = useCallback(async (paymentId, amountReceived) => {
     const payment = data.payments.find(p => p.id === paymentId);
@@ -703,7 +703,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to revert payment');
       console.error(err);
     }
-  }, [data.payments]);
+  }, [data.payments, logActivity]);
 
   const deletePayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);
@@ -722,7 +722,7 @@ export function AppProvider({ children }) {
       toast.error('Failed to delete payment');
       console.error(err);
     }
-  }, [data.payments]);
+  }, [data.payments, logActivity]);
 
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
