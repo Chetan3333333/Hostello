@@ -20,8 +20,12 @@ BEGIN
     capacity = CASE WHEN p_updates ? 'capacity' THEN (p_updates->>'capacity')::int ELSE capacity END,
     price = CASE WHEN p_updates ? 'price' THEN (p_updates->>'price')::numeric ELSE price END,
     type = CASE WHEN p_updates ? 'type' THEN p_updates->>'type' ELSE type END,
+    floor = CASE WHEN p_updates ? 'floor' THEN p_updates->>'floor' ELSE floor END,
+    has_ac = CASE WHEN p_updates ? 'has_ac' THEN (p_updates->>'has_ac')::boolean ELSE has_ac END,
+    has_attached_bath = CASE WHEN p_updates ? 'has_attached_bath' THEN (p_updates->>'has_attached_bath')::boolean ELSE has_attached_bath END,
     amenities = CASE WHEN p_updates ? 'amenities' THEN p_updates->'amenities' ELSE amenities END,
     status = CASE WHEN p_updates ? 'status' THEN p_updates->>'status' ELSE status END,
+    maintenance_notes = CASE WHEN p_updates ? 'maintenance_notes' THEN p_updates->>'maintenance_notes' ELSE maintenance_notes END,
     current_occupants = CASE WHEN p_updates ? 'current_occupants' THEN (p_updates->>'current_occupants')::int ELSE current_occupants END
   WHERE id = p_room_id;
 
