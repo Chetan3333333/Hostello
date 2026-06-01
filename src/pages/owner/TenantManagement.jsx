@@ -63,7 +63,7 @@ export default function TenantManagement() {
     }
   };
 
-  const unpaidPayments = checkoutData ? currentPayments.filter(p => p.tenantId === checkoutData.id && p.status !== 'paid') : [];
+  const unpaidPayments = checkoutData ? currentPayments.filter(p => p.tenantId === checkoutData.id && p.status !== 'paid' && p.status !== 'written_off') : [];
   const totalUnpaid = unpaidPayments.reduce((s, p) => s + p.amount, 0);
   const deposit = checkoutData?.securityDeposit || 0;
   const netBalance = deposit - totalUnpaid;
