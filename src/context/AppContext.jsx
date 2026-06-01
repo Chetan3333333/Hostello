@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { AppContext } from './app-context';
@@ -222,12 +222,12 @@ export function AppProvider({ children }) {
     clearOwnerData();
   }, [clearOwnerData]);
 
-  const activeHostelId = ownerHostelId || data.hostels[0]?.id;
-  const currentHostel = data.hostels.find(h => h.id === activeHostelId) || data.hostels[0];
-  const currentRooms = data.rooms.filter(r => r.hostelId === activeHostelId);
-  const currentTenants = data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive);
-  const currentPayments = data.payments.filter(p => p.hostelId === activeHostelId);
-  const currentStaff = data.staff.filter(s => s.hostelId === activeHostelId);
+  const activeHostelId = useMemo(() => ownerHostelId || data.hostels[0]?.id, [ownerHostelId, data.hostels]);
+  const currentHostel = useMemo(() => data.hostels.find(h => h.id === activeHostelId) || data.hostels[0], [data.hostels, activeHostelId]);
+  const currentRooms = useMemo(() => data.rooms.filter(r => r.hostelId === activeHostelId), [data.rooms, activeHostelId]);
+  const currentTenants = useMemo(() => data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive), [data.tenants, activeHostelId]);
+  const currentPayments = useMemo(() => data.payments.filter(p => p.hostelId === activeHostelId), [data.payments, activeHostelId]);
+  const currentStaff = useMemo(() => data.staff.filter(s => s.hostelId === activeHostelId), [data.staff, activeHostelId]);
 
   const addRoom = useCallback(async (room) => {
     const newRoom = { ...room, id: `${activeHostelId}-r${Date.now()}`, hostelId: activeHostelId };
