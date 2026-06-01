@@ -645,15 +645,14 @@ export function AppProvider({ children }) {
         };
       }
 
-      // Update original payment to paid
-      const { error: updateError } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
-      if (updateError) throw updateError;
-
-      // Insert remainder bill for split invoices
-      if (newPayment) {
-        const { error: insertError } = await supabase.from('payments').insert([toSnakeCase(newPayment)]);
-        if (insertError) throw insertError;
-      }
+      // Atomic Transaction to prevent data drift on partial payments
+      const { error: rpcError } = await supabase.rpc('record_payment_transaction', {
+        p_payment_id: paymentId,
+        p_actual_amount: actualAmount,
+        p_paid_date: today,
+        p_new_payment: newPayment ? toSnakeCase(newPayment) : null
+      });
+      if (rpcError) throw rpcError;
 
       setData(prev => {
         let nextPayments = prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p);

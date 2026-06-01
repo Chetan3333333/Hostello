@@ -106,7 +106,38 @@ BEGIN
 END;
 $$;
 
--- 4. CLEANUP: Remove record_payment_transaction (reverted to direct calls)
-DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, text, jsonb);
-DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, text, jsonb);
-DROP FUNCTION IF EXISTS record_payment_transaction(text, numeric, date, jsonb);
+-- 4. RECORD PAYMENT TRANSACTION
+CREATE OR REPLACE FUNCTION record_payment_transaction(
+  p_payment_id text,
+  p_actual_amount numeric,
+  p_paid_date date,
+  p_new_payment jsonb
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+  -- 1. Update the original payment
+  UPDATE payments 
+  SET status = 'paid', paid_date = p_paid_date, amount = p_actual_amount
+  WHERE id = p_payment_id;
+
+  -- 2. If it's a partial payment, insert the remainder bill
+  IF p_new_payment IS NOT NULL THEN
+    INSERT INTO payments (id, hostel_id, tenant_id, tenant_name, room_number, amount, month, due_date, status, created_at)
+    VALUES (
+      p_new_payment->>'id',
+      p_new_payment->>'hostel_id',
+      p_new_payment->>'tenant_id',
+      p_new_payment->>'tenant_name',
+      p_new_payment->>'room_number',
+      (p_new_payment->>'amount')::numeric,
+      p_new_payment->>'month',
+      (p_new_payment->>'due_date')::date,
+      p_new_payment->>'status',
+      (p_new_payment->>'created_at')::date
+    );
+  END IF;
+END;
+$$;
