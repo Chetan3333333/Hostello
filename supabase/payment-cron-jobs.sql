@@ -44,7 +44,7 @@ begin
             room_number, 
             rent_amount, 
             current_month_str, 
-            current_month_str || '-10', -- Due strictly on the 10th
+            (current_month_str || '-10')::date, -- Due strictly on the 10th
             'pending', 
             hostel_id,
             'Automated monthly rent for ' || current_month_str
