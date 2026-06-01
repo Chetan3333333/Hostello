@@ -680,17 +680,9 @@ export function AppProvider({ children }) {
     let correctStatus = 'pending';
     if (payment) {
       const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1;
-      const currentDate = now.getDate();
+      const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       
-      const [paymentYearStr, paymentMonthStr] = payment.month.split('-');
-      const paymentYear = parseInt(paymentYearStr, 10);
-      const paymentMonth = parseInt(paymentMonthStr, 10);
-      
-      if (currentYear > paymentYear || (currentYear === paymentYear && currentMonth > paymentMonth)) {
-        correctStatus = 'overdue';
-      } else if (currentYear === paymentYear && currentMonth === paymentMonth && currentDate > 10) {
+      if (payment.dueDate && localToday > payment.dueDate) {
         correctStatus = 'overdue';
       }
     }
