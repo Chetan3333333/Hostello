@@ -639,6 +639,7 @@ export function AppProvider({ children }) {
           roomNumber: payment.roomNumber,
           amount: remainingAmount,
           month: payment.month,
+          dueDate: payment.dueDate,
           status: payment.status === 'overdue' ? 'overdue' : 'pending',
           createdAt: today
         };
