@@ -51,7 +51,7 @@ function generateRooms(hostel) {
         currentOccupants: status === 'occupied' ? ((floor + r) % capacity) + 1 : 0,
         amenities: ['beds', 'tables', 'chairs', 'fan', 'cupboard'],
         hasAttachedBath: false,
-        hasAC: (floor + r) % 4 === 0,
+        hasAc: (floor + r) % 4 === 0,
       });
       roomNum++;
     }

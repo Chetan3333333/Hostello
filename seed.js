@@ -12,10 +12,7 @@ const toSnakeCase = (obj) => {
     if (key === 'pin') continue;
     if (key === 'images') continue;
 
-    if (key === 'hasAC') {
-      newObj.has_ac = obj[key];
-      continue;
-    }
+
 
     const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
     newObj[snakeKey] = obj[key];
