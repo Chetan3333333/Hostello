@@ -1,13 +1,11 @@
 import { Search } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 
 export default function DataTable({ columns, data, searchable = true, searchPlaceholder = 'Search...', onRowClick, emptyMessage = 'No data found', pageSize = 10 }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [sortCol, setSortCol] = useState(null);
   const [sortDir, setSortDir] = useState('asc');
-
-  useEffect(() => { setPage(0); }, [data]);
 
   const filtered = useMemo(() => {
     let result = data;
@@ -32,7 +30,8 @@ export default function DataTable({ columns, data, searchable = true, searchPlac
   }, [data, search, sortCol, sortDir, columns]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
-  const pageData = filtered.slice(page * pageSize, (page + 1) * pageSize);
+  const activePage = Math.min(page, Math.max(totalPages - 1, 0));
+  const pageData = filtered.slice(activePage * pageSize, (activePage + 1) * pageSize);
 
   const handleSort = (accessor) => {
     if (!accessor) return;
@@ -42,6 +41,7 @@ export default function DataTable({ columns, data, searchable = true, searchPlac
       setSortCol(accessor);
       setSortDir('asc');
     }
+    setPage(0);
   };
 
   return (
@@ -100,19 +100,19 @@ export default function DataTable({ columns, data, searchable = true, searchPlac
       {totalPages > 1 && (
         <div className="data-table-pagination">
           <span className="data-table-info">
-            Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, filtered.length)} of {filtered.length}
+            Showing {activePage * pageSize + 1}-{Math.min((activePage + 1) * pageSize, filtered.length)} of {filtered.length}
           </span>
           <div className="data-table-pages">
-            <button className="btn btn-ghost btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>Previous</button>
+            <button className="btn btn-ghost btn-sm" disabled={activePage === 0} onClick={() => setPage(Math.max(0, activePage - 1))}>Previous</button>
             {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              const pageNum = totalPages <= 5 ? i : Math.max(0, Math.min(page - 2, totalPages - 5)) + i;
+               const pageNum = totalPages <= 5 ? i : Math.max(0, Math.min(activePage - 2, totalPages - 5)) + i;
               return (
-                <button key={pageNum} className={`btn btn-ghost btn-sm ${page === pageNum ? 'active' : ''}`} onClick={() => setPage(pageNum)}>
+                <button key={pageNum} className={`btn btn-ghost btn-sm ${activePage === pageNum ? 'active' : ''}`} onClick={() => setPage(pageNum)}>
                   {pageNum + 1}
                 </button>
               );
             })}
-            <button className="btn btn-ghost btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next</button>
+            <button className="btn btn-ghost btn-sm" disabled={activePage >= totalPages - 1} onClick={() => setPage(activePage + 1)}>Next</button>
           </div>
         </div>
       )}

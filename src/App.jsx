@@ -1,18 +1,26 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AppProvider } from './context/AppContext';
 import { useApp } from './hooks/useApp';
-import LandingPage from './pages/LandingPage';
-import OwnerLogin from './pages/owner/OwnerLogin';
-import OwnerLayout from './pages/owner/OwnerLayout';
-import Dashboard from './pages/owner/Dashboard';
-import RoomManagement from './pages/owner/RoomManagement';
-import TenantManagement from './pages/owner/TenantManagement';
-import PaymentTracking from './pages/owner/PaymentTracking';
-import StaffManagement from './pages/owner/StaffManagement';
-import HostelProfile from './pages/owner/HostelProfile';
-import HostelSearch from './pages/student/HostelSearch';
-import HostelDetail from './pages/student/HostelDetail';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const OwnerLogin = lazy(() => import('./pages/owner/OwnerLogin'));
+const OwnerLayout = lazy(() => import('./pages/owner/OwnerLayout'));
+const Dashboard = lazy(() => import('./pages/owner/Dashboard'));
+const RoomManagement = lazy(() => import('./pages/owner/RoomManagement'));
+const TenantManagement = lazy(() => import('./pages/owner/TenantManagement'));
+const PaymentTracking = lazy(() => import('./pages/owner/PaymentTracking'));
+const StaffManagement = lazy(() => import('./pages/owner/StaffManagement'));
+const HostelProfile = lazy(() => import('./pages/owner/HostelProfile'));
+const HostelSearch = lazy(() => import('./pages/student/HostelSearch'));
+const HostelDetail = lazy(() => import('./pages/student/HostelDetail'));
+
+const RouteLoading = () => (
+  <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
+    Loading Hostello...
+  </div>
+);
 
 function ProtectedOwnerRoute({ children }) {
   const { isOwnerLoggedIn, loading } = useApp();
@@ -59,7 +67,9 @@ export default function App() {
   return (
     <AppProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <Suspense fallback={<RouteLoading />}>
+          <AppRoutes />
+        </Suspense>
       </BrowserRouter>
       <Toaster
         position="top-right"

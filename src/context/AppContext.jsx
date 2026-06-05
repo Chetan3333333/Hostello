@@ -1,7 +1,11 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { getCurrentMonth, getDueDateForMonth, toLocalDateString } from '../lib/date';
 import { AppContext } from './app-context';
+
+const ACTIVITY_PAGE_SIZE = 100;
+const PUBLIC_ROOM_COLUMNS = 'id,hostel_id,number,floor,type,price,status,capacity,current_occupants,amenities,has_attached_bath,has_ac,is_archived';
 
 const emptyData = {
   hostels: [],
@@ -31,22 +35,31 @@ const toSnakeCase = (obj) => {
   return newObj;
 };
 
-export const calculateRoomStatus = (occupants, capacity, isMaintenance) => {
+const calculateRoomStatus = (occupants, capacity, isMaintenance) => {
   if (isMaintenance) return 'maintenance';
   if (occupants >= capacity) return 'occupied';
   return 'available';
 };
+
+const createId = (prefix) => `${prefix}-${crypto.randomUUID()}`;
+
+const sortActivityLogs = (logs) => [...logs].sort((a, b) => {
+  const timeDifference = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  return timeDifference || String(b.id).localeCompare(String(a.id));
+});
 
 export function AppProvider({ children }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
   const [ownerProfile, setOwnerProfile] = useState(null);
+  const [hasMoreActivityLogs, setHasMoreActivityLogs] = useState(false);
+  const [loadingMoreActivityLogs, setLoadingMoreActivityLogs] = useState(false);
 
   const fetchPublicData = useCallback(async () => {
     const [{ data: hostelsData, error: hostelsError }, { data: roomsData, error: roomsError }] = await Promise.all([
       supabase.from('hostels').select('id,name,type,address,phone,whatsapp,email,description,nearby_landmarks,rating,total_rooms,amenities,rules,pricing,established,created_at'),
-      supabase.from('rooms').select('*')
+      supabase.from('rooms').select(PUBLIC_ROOM_COLUMNS).eq('is_archived', false)
     ]);
 
     if (hostelsError) throw hostelsError;
@@ -61,6 +74,7 @@ export function AppProvider({ children }) {
 
   const clearOwnerData = useCallback(() => {
     setOwnerProfile(null);
+    setHasMoreActivityLogs(false);
     setData(prev => ({
       ...prev,
       tenants: [],
@@ -93,7 +107,12 @@ export function AppProvider({ children }) {
       supabase.from('tenants').select('*').eq('hostel_id', hostelId),
       supabase.from('payments').select('*').eq('hostel_id', hostelId),
       supabase.from('staff').select('*').eq('hostel_id', hostelId),
-      supabase.from('activity_logs').select('*').eq('hostel_id', hostelId).order('created_at', { ascending: false }).limit(500)
+      supabase.from('activity_logs')
+        .select('*')
+        .eq('hostel_id', hostelId)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(ACTIVITY_PAGE_SIZE)
     ]);
 
     const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError || activityLogsError;
@@ -101,6 +120,7 @@ export function AppProvider({ children }) {
 
     const mappedHostel = mapKeys([hostelData])[0];
     setOwnerProfile({ userId, hostelId });
+    setHasMoreActivityLogs((activityLogsData || []).length === ACTIVITY_PAGE_SIZE);
     
     setData(prev => ({
       hostels: [
@@ -118,26 +138,8 @@ export function AppProvider({ children }) {
     }));
   }, []);
 
-  const logActivity = useCallback((type, message) => {
-    // 🛡️ SECURITY UPDATE: The actual database logging is now handled by impenetrable Postgres Triggers.
-    // This function now simply acts as an "Optimistic UI Update" to instantly show the log on the dashboard
-    // without waiting for a network refresh or needing Supabase Realtime WebSockets.
-    const activeHostelId = ownerProfile?.hostelId || data.hostels[0]?.id;
-    if (!activeHostelId) return;
-    
-    const optimisticLog = {
-      id: `temp-${Date.now()}-${Math.random()}`,
-      hostelId: activeHostelId,
-      type,
-      message,
-      createdAt: new Date().toISOString()
-    };
-    
-    setData(prev => ({
-      ...prev,
-      activityLogs: [optimisticLog, ...prev.activityLogs]
-    }));
-  }, [ownerProfile, data.hostels]);
+  // Persistent database triggers and Realtime own the activity feed.
+  const logActivity = useCallback(() => {}, []);
 
   useEffect(() => {
     let isActive = true;
@@ -199,6 +201,72 @@ export function AppProvider({ children }) {
   const isOwnerLoggedIn = !!session && !!ownerProfile;
   const ownerHostelId = ownerProfile?.hostelId || null;
 
+  useEffect(() => {
+    if (!ownerHostelId) return undefined;
+
+    const channel = supabase
+      .channel(`activity-logs-${ownerHostelId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'activity_logs',
+          filter: `hostel_id=eq.${ownerHostelId}`
+        },
+        (payload) => {
+          const newLog = mapKeys([payload.new])[0];
+          setData(prev => {
+            if (prev.activityLogs.some(log => log.id === newLog.id)) return prev;
+            return {
+              ...prev,
+              activityLogs: sortActivityLogs([newLog, ...prev.activityLogs])
+            };
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [ownerHostelId]);
+
+  const loadMoreActivityLogs = useCallback(async () => {
+    if (!ownerHostelId || loadingMoreActivityLogs || !hasMoreActivityLogs) return;
+
+    const oldestLog = data.activityLogs[data.activityLogs.length - 1];
+    if (!oldestLog) return;
+
+    setLoadingMoreActivityLogs(true);
+    try {
+      const { data: olderLogs, error } = await supabase.rpc('get_activity_logs_page', {
+        p_before_created_at: oldestLog.createdAt,
+        p_before_id: oldestLog.id,
+        p_limit: ACTIVITY_PAGE_SIZE
+      });
+      if (error) throw error;
+
+      const mappedLogs = mapKeys(olderLogs || []);
+      setHasMoreActivityLogs(mappedLogs.length === ACTIVITY_PAGE_SIZE);
+      setData(prev => {
+        const knownIds = new Set(prev.activityLogs.map(log => log.id));
+        return {
+          ...prev,
+          activityLogs: sortActivityLogs([
+            ...prev.activityLogs,
+            ...mappedLogs.filter(log => !knownIds.has(log.id))
+          ])
+        };
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load older activity');
+    } finally {
+      setLoadingMoreActivityLogs(false);
+    }
+  }, [data.activityLogs, hasMoreActivityLogs, loadingMoreActivityLogs, ownerHostelId]);
+
   const ownerLogin = useCallback(async (email, password) => {
     const { data: authData, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { success: false, error: error.message };
@@ -224,22 +292,24 @@ export function AppProvider({ children }) {
 
   const activeHostelId = useMemo(() => ownerHostelId || data.hostels[0]?.id, [ownerHostelId, data.hostels]);
   const currentHostel = useMemo(() => data.hostels.find(h => h.id === activeHostelId) || data.hostels[0], [data.hostels, activeHostelId]);
-  const currentRooms = useMemo(() => data.rooms.filter(r => r.hostelId === activeHostelId), [data.rooms, activeHostelId]);
+  const currentRooms = useMemo(() => data.rooms.filter(r => r.hostelId === activeHostelId && !r.isArchived), [data.rooms, activeHostelId]);
   const currentTenants = useMemo(() => data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive), [data.tenants, activeHostelId]);
   const currentPayments = useMemo(() => data.payments.filter(p => p.hostelId === activeHostelId), [data.payments, activeHostelId]);
   const currentStaff = useMemo(() => data.staff.filter(s => s.hostelId === activeHostelId), [data.staff, activeHostelId]);
 
   const addRoom = useCallback(async (room) => {
-    const newRoom = { ...room, id: `${activeHostelId}-r${Date.now()}`, hostelId: activeHostelId };
+    const newRoom = { ...room, id: createId('room'), hostelId: activeHostelId, isArchived: false };
     try {
       const { error } = await supabase.from('rooms').insert([toSnakeCase(newRoom)]);
       if (error) throw error;
       setData(prev => ({ ...prev, rooms: [...prev.rooms, newRoom] }));
       logActivity('system', `System: Room ${newRoom.number} was added to the hostel.`);
       toast.success('Room added');
+      return true;
     } catch (err) {
       toast.error('Failed to add room');
       console.error(err);
+      return false;
     }
   }, [activeHostelId, logActivity]);
 
@@ -283,9 +353,11 @@ export function AppProvider({ children }) {
         }
       }
       toast.success('Room updated');
+      return true;
     } catch (err) {
       toast.error('Failed to update room');
       console.error(err);
+      return false;
     }
   }, [currentRooms, logActivity]);
 
@@ -299,6 +371,7 @@ export function AppProvider({ children }) {
         logActivity('system', `WARNING: Room ${room.number} was permanently DELETED.`);
       }
       toast.success('Room deleted');
+      return true;
     } catch (err) {
       if (err?.code === '23503') {
         toast.error('Cannot delete: This room has past tenants linked to it. Please rename it or mark it as maintenance instead.');
@@ -306,14 +379,18 @@ export function AppProvider({ children }) {
         toast.error('Failed to delete room');
         console.error(err);
       }
+      return false;
     }
   }, [currentRooms, logActivity]);
 
   const addTenant = useCallback(async (tenant) => {
-    const newTenant = { ...tenant, id: `t-${Date.now()}`, hostelId: activeHostelId, isActive: true };
+    const newTenant = { ...tenant, id: createId('tenant'), hostelId: activeHostelId, isActive: true };
     const room = currentRooms.find(r => r.id === tenant.roomId);
 
-    if (!room) return;
+    if (!room || room.isArchived || room.currentOccupants >= room.capacity) {
+      toast.error('Selected room is no longer available');
+      return false;
+    }
 
     const newOccupants = (room.currentOccupants || 0) + 1;
     const roomUpdates = { 
@@ -321,14 +398,11 @@ export function AppProvider({ children }) {
       status: calculateRoomStatus(newOccupants, room.capacity, room.status === 'maintenance') 
     };
 
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const dueDate = new Date();
-    dueDate.setDate(10);
-    const dueDateStr = dueDate.toISOString().split('T')[0];
+    const currentMonthStr = getCurrentMonth();
+    const dueDateStr = getDueDateForMonth(currentMonthStr);
 
     const newPayment = {
-      id: `p-${Date.now()}-${newTenant.id}`,
+      id: createId('payment'),
       hostelId: activeHostelId,
       tenantId: newTenant.id,
       tenantName: newTenant.name,
@@ -336,7 +410,9 @@ export function AppProvider({ children }) {
       amount: newTenant.rentAmount,
       month: currentMonthStr,
       dueDate: dueDateStr,
-      status: 'pending'
+      status: 'pending',
+      source: 'check_in',
+      isRemainder: false
     };
 
     try {
@@ -356,15 +432,17 @@ export function AppProvider({ children }) {
       }));
       logActivity('tenant', `${newTenant.name} joined Room ${newTenant.roomNumber}`);
       toast.success('Tenant added successfully');
+      return true;
     } catch (err) {
       toast.error('Failed to add tenant');
       console.error(err);
+      return false;
     }
   }, [activeHostelId, currentRooms, logActivity]);
 
   const updateTenant = useCallback(async (tenantId, updates) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
-    if (!tenant) return;
+    if (!tenant) return false;
 
     let stateUpdates = { rooms: null, paymentUpdates: null, rentUpdates: null };
 
@@ -374,6 +452,10 @@ export function AppProvider({ children }) {
       const newRoom = currentRooms.find(r => r.id === updates.roomId);
 
       if (oldRoom && newRoom) {
+        if (newRoom.isArchived || newRoom.currentOccupants >= newRoom.capacity) {
+          toast.error('Destination room is no longer available');
+          return false;
+        }
         const oldOccupants = Math.max(0, (oldRoom.currentOccupants || 0) - 1);
         const oldRoomUpdates = { 
           currentOccupants: oldOccupants, 
@@ -391,17 +473,18 @@ export function AppProvider({ children }) {
           new: { id: newRoom.id, updates: newRoomUpdates }
         };
 
-        const now = new Date();
-        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthStr = getCurrentMonth();
         const newRoomNumber = updates.roomNumber || newRoom.number;
         stateUpdates.paymentUpdates = { tenantId, roomNumber: newRoomNumber, month: currentMonthStr };
+      } else {
+        toast.error('Unable to find the selected room');
+        return false;
       }
     }
 
     const isRentChanging = updates.rentAmount !== undefined && Number(updates.rentAmount) !== Number(tenant.rentAmount);
     if (isRentChanging) {
-      const now = new Date();
-      const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const currentMonthStr = getCurrentMonth();
       
       const tenantBillsThisMonth = data.payments.filter(p => p.tenantId === tenantId && p.month === currentMonthStr);
       if (tenantBillsThisMonth.length <= 1) {
@@ -421,9 +504,9 @@ export function AppProvider({ children }) {
         p_old_room_status: isRoomChanging ? stateUpdates.rooms.old.updates.status : null,
         p_new_room_status: isRoomChanging ? stateUpdates.rooms.new.updates.status : null,
         p_new_room_number: isRoomChanging ? stateUpdates.paymentUpdates.roomNumber : null,
-        p_rent_changed: isRentChanging,
-        p_new_rent_amount: isRentChanging ? stateUpdates.rentUpdates?.amount || updates.rentAmount : null,
-        p_current_month: isRoomChanging ? stateUpdates.paymentUpdates.month : (isRentChanging ? stateUpdates.rentUpdates?.month || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` : null)
+        p_rent_changed: Boolean(stateUpdates.rentUpdates),
+        p_new_rent_amount: stateUpdates.rentUpdates?.amount ?? null,
+        p_current_month: isRoomChanging || isRentChanging ? getCurrentMonth() : null
       };
 
       const { error } = await supabase.rpc('update_tenant_transaction', rpcPayload);
@@ -468,9 +551,11 @@ export function AppProvider({ children }) {
         logActivity('tenant', `WARNING: ${tenant.name}'s monthly rent was secretly changed from ₹${Number(tenant.rentAmount).toLocaleString()} to ₹${Number(updates.rentAmount).toLocaleString()}.`);
       }
       toast.success('Tenant updated');
+      return true;
     } catch (err) {
       toast.error('Failed to update tenant');
       console.error(err);
+      return false;
     }
   }, [data.tenants, currentRooms, data.payments, logActivity]);
 
@@ -478,22 +563,21 @@ export function AppProvider({ children }) {
     const tenantA = data.tenants.find(t => t.id === tenantAId);
     const tenantB = data.tenants.find(t => t.id === tenantBId);
     
-    if (!tenantA || !tenantB) return;
+    if (!tenantA || !tenantB) return false;
 
     // The logic: Tenant A gets B's room and rent. Tenant B gets A's room and rent.
     const aUpdates = { roomId: tenantB.roomId, roomNumber: tenantB.roomNumber, rentAmount: tenantB.rentAmount };
     const bUpdates = { roomId: tenantA.roomId, roomNumber: tenantA.roomNumber, rentAmount: tenantA.rentAmount };
     
     // Sync payment updates (Pending/Overdue only, for current month only)
-    const now = new Date();
-    const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonthStr = getCurrentMonth();
     
     const aBills = data.payments.filter(p => p.tenantId === tenantA.id && p.month === currentMonthStr);
     const bBills = data.payments.filter(p => p.tenantId === tenantB.id && p.month === currentMonthStr);
 
     if (aBills.length > 1 || bBills.length > 1) {
       toast.error('Cannot swap tenants with partial payments. Settle bills first.');
-      return;
+      return false;
     }
 
     try {
@@ -529,24 +613,26 @@ export function AppProvider({ children }) {
       });
       logActivity('tenant', `${tenantA.name} and ${tenantB.name} swapped rooms`);
       toast.success('Rooms swapped successfully!');
+      return true;
     } catch (err) {
       toast.error('Failed to swap rooms');
       console.error(err);
+      return false;
     }
   }, [data.tenants, data.payments, logActivity]);
 
   const checkoutTenant = useCallback(async (tenantId) => {
     const tenant = data.tenants.find(t => t.id === tenantId);
-    if (!tenant) return;
+    if (!tenant) return false;
 
     // Strict Blocker: Prevent checkout if tenant has unpaid bills
     const unpaidBills = data.payments.filter(p => p.tenantId === tenantId && ['pending', 'overdue'].includes(p.status));
     if (unpaidBills.length > 0) {
       toast.error(`Cannot check out tenant. ${tenant.name} still has unpaid bills. Please collect the pending rent or manually mark the bills as written-off before checking them out.`, { duration: 6000 });
-      return;
+      return false;
     }
 
-    const checkoutDate = new Date().toISOString().split('T')[0];
+    const checkoutDate = toLocalDateString();
     const room = currentRooms.find(r => r.id === tenant.roomId);
 
     let roomUpdates = null;
@@ -575,23 +661,33 @@ export function AppProvider({ children }) {
       }));
       logActivity('tenant', `${tenant.name} checked out from Room ${tenant.roomNumber}`);
       toast.success('Tenant checked out');
+      return true;
     } catch (err) {
       toast.error('Failed to checkout tenant');
       console.error(err);
+      return false;
     }
   }, [data.tenants, currentRooms, data.payments, logActivity]);
 
   const addPayment = useCallback(async (payment) => {
-    const newPayment = { ...payment, id: `pay-${Date.now()}`, hostelId: activeHostelId };
+    const newPayment = {
+      ...payment,
+      id: createId('payment'),
+      hostelId: activeHostelId,
+      source: 'manual',
+      isRemainder: false
+    };
     try {
       const { error } = await supabase.from('payments').insert([toSnakeCase(newPayment)]);
       if (error) throw error;
       setData(prev => ({ ...prev, payments: [...prev.payments, newPayment] }));
       logActivity('payment', `WARNING: A manual payment record of ₹${Number(newPayment.amount).toLocaleString()} was created for ${newPayment.tenantName}.`);
       toast.success('Payment added');
+      return true;
     } catch (err) {
       toast.error('Failed to add payment');
       console.error(err);
+      return false;
     }
   }, [activeHostelId, logActivity]);
 
@@ -611,28 +707,34 @@ export function AppProvider({ children }) {
         logActivity('payment', `WARNING: Pending bill amount for ${payment?.tenantName} was altered from ₹${Number(payment?.amount).toLocaleString()} to ₹${Number(updates.amount).toLocaleString()}.`);
       }
       toast.success('Payment updated');
+      return true;
     } catch (err) {
       toast.error('Failed to update payment');
       console.error(err);
+      return false;
     }
   }, [data.payments, logActivity]);
 
   const recordPayment = useCallback(async (paymentId, amountReceived) => {
     const payment = data.payments.find(p => p.id === paymentId);
-    if (!payment) return;
+    if (!payment) return false;
 
     const actualAmount = amountReceived !== undefined ? Number(amountReceived) : payment.amount;
+    if (!Number.isFinite(actualAmount) || actualAmount <= 0 || actualAmount > payment.amount) {
+      toast.error('Enter a valid amount up to the bill total');
+      return false;
+    }
     const isPartial = actualAmount < payment.amount;
     const remainingAmount = payment.amount - actualAmount;
 
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalDateString();
       const updates = { status: 'paid', paidDate: today, amount: actualAmount };
       
       let newPayment = null;
       if (isPartial) {
         newPayment = {
-          id: `pay-${Date.now()}`,
+          id: createId('payment'),
           hostelId: payment.hostelId,
           tenantId: payment.tenantId,
           tenantName: payment.tenantName,
@@ -641,7 +743,8 @@ export function AppProvider({ children }) {
           month: payment.month,
           dueDate: payment.dueDate,
           status: payment.status === 'overdue' ? 'overdue' : 'pending',
-          createdAt: today
+          source: 'split',
+          isRemainder: true
         };
       }
 
@@ -667,9 +770,11 @@ export function AppProvider({ children }) {
         logActivity('payment', `Invoice split: New pending bill of ₹${remainingAmount.toLocaleString()} created for ${payment.tenantName}`);
       }
       toast.success(isPartial ? 'Partial payment recorded & invoice split' : 'Payment recorded');
+      return true;
     } catch (err) {
       toast.error('Failed to record payment');
       console.error(err);
+      return false;
     }
   }, [data.payments, logActivity]);
 
@@ -678,8 +783,7 @@ export function AppProvider({ children }) {
     
     let correctStatus = 'pending';
     if (payment) {
-      const now = new Date();
-      const localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const localToday = toLocalDateString();
       
       if (payment.dueDate && localToday > payment.dueDate) {
         correctStatus = 'overdue';
@@ -698,9 +802,11 @@ export function AppProvider({ children }) {
         logActivity('payment', `Payment of ₹${payment.amount.toLocaleString()} undone for ${payment.tenantName}`);
       }
       toast.success(`Payment reverted to ${correctStatus}`);
+      return true;
     } catch (err) {
       toast.error('Failed to revert payment');
       console.error(err);
+      return false;
     }
   }, [data.payments, logActivity]);
 
@@ -717,9 +823,11 @@ export function AppProvider({ children }) {
         logActivity('payment', `WARNING: Payment record of ₹${Number(payment.amount).toLocaleString()} for ${payment.tenantName} was permanently DELETED.`);
       }
       toast.success('Payment record deleted permanently');
+      return true;
     } catch (err) {
       toast.error('Failed to delete payment');
       console.error(err);
+      return false;
     }
   }, [data.payments, logActivity]);
 
@@ -732,22 +840,26 @@ export function AppProvider({ children }) {
         hostels: prev.hostels.map(h => h.id === hostelId ? { ...h, ...updates } : h)
       }));
       toast.success('Hostel profile updated');
+      return true;
     } catch (err) {
       toast.error('Failed to update hostel profile');
       console.error(err);
+      return false;
     }
   }, []);
 
   const addStaff = useCallback(async (staffMember) => {
-    const newStaff = { ...staffMember, balance: 0, id: `staff-${Date.now()}`, hostelId: activeHostelId };
+    const newStaff = { ...staffMember, balance: 0, id: createId('staff'), hostelId: activeHostelId };
     try {
       const { error } = await supabase.from('staff').insert([toSnakeCase(newStaff)]);
       if (error) throw error;
       setData(prev => ({ ...prev, staff: [...prev.staff, newStaff] }));
       toast.success('Staff added');
+      return true;
     } catch (err) {
       toast.error('Failed to add staff');
       console.error(err);
+      return false;
     }
   }, [activeHostelId]);
 
@@ -760,9 +872,11 @@ export function AppProvider({ children }) {
         staff: prev.staff.map(s => s.id === staffId ? { ...s, ...updates } : s)
       }));
       toast.success('Staff updated');
+      return true;
     } catch (err) {
       toast.error('Failed to update staff');
       console.error(err);
+      return false;
     }
   }, []);
 
@@ -772,45 +886,65 @@ export function AppProvider({ children }) {
       if (error) throw error;
       setData(prev => ({ ...prev, staff: prev.staff.filter(s => s.id !== staffId) }));
       toast.success('Staff deleted');
+      return true;
     } catch (err) {
       toast.error('Failed to delete staff');
       console.error(err);
+      return false;
     }
   }, []);
 
   const addStaffSalary = useCallback(async (staffId, amount) => {
     const staffMember = data.staff.find(s => s.id === staffId);
-    if (!staffMember) return;
-    const newBalance = (Number(staffMember.balance) || 0) + Number(amount);
+    const numericAmount = Number(amount);
+    if (!staffMember || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      toast.error('Salary amount must be greater than zero');
+      return false;
+    }
     try {
-      const { error } = await supabase.from('staff').update({ balance: newBalance }).eq('id', staffId);
+      const { data: newBalance, error } = await supabase.rpc('adjust_staff_balance', {
+        p_staff_id: staffId,
+        p_delta: numericAmount,
+        p_reason: 'salary'
+      });
       if (error) throw error;
       setData(prev => ({
         ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: newBalance } : s)
+        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: Number(newBalance) } : s)
       }));
       toast.success('Salary added to balance');
+      return true;
     } catch (err) {
       toast.error('Failed to add salary');
       console.error(err);
+      return false;
     }
   }, [data.staff]);
 
   const payStaffCash = useCallback(async (staffId, amount) => {
     const staffMember = data.staff.find(s => s.id === staffId);
-    if (!staffMember) return;
-    const newBalance = (Number(staffMember.balance) || 0) - Number(amount);
+    const numericAmount = Number(amount);
+    if (!staffMember || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      toast.error('Cash payment must be greater than zero');
+      return false;
+    }
     try {
-      const { error } = await supabase.from('staff').update({ balance: newBalance }).eq('id', staffId);
+      const { data: newBalance, error } = await supabase.rpc('adjust_staff_balance', {
+        p_staff_id: staffId,
+        p_delta: -numericAmount,
+        p_reason: 'cash_payment'
+      });
       if (error) throw error;
       setData(prev => ({
         ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: newBalance } : s)
+        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: Number(newBalance) } : s)
       }));
       toast.success('Cash payment recorded');
+      return true;
     } catch (err) {
       toast.error('Failed to record payment');
       console.error(err);
+      return false;
     }
   }, [data.staff]);
 
@@ -825,8 +959,7 @@ export function AppProvider({ children }) {
     const totalBeds = currentRooms.reduce((sum, r) => sum + (r.capacity || 0), 0);
     const occupancyRate = totalBeds > 0 ? Math.round((currentTenants.length / totalBeds) * 100) : 0;
 
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const currentMonth = getCurrentMonth();
     const monthPayments = currentPayments.filter(p => p.month === currentMonth);
     
     // Collected: Paid this month
@@ -847,6 +980,7 @@ export function AppProvider({ children }) {
 
   const value = {
     data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
+    hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
     addPayment, updatePayment, recordPayment, revertPayment, deletePayment,

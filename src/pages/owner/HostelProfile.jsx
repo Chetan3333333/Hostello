@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import toast from 'react-hot-toast';
 import { Save, MapPin } from 'lucide-react';
 import { useApp } from '../../hooks/useApp';
 import { amenityLabels } from '../../data/mockData';
@@ -7,10 +6,9 @@ import { amenityLabels } from '../../data/mockData';
 function HostelProfileForm({ currentHostel, updateHostel }) {
   const [form, setForm] = useState({ ...currentHostel });
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    updateHostel(currentHostel.id, form);
-    toast.success('Hostel profile updated!');
+    await updateHostel(currentHostel.id, form);
   };
 
   const toggleAmenity = (amenity) => {

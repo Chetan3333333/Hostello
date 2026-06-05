@@ -6,15 +6,17 @@ import StatCard from '../../components/StatCard';
 import { staffRoleLabels, staffStatusLabels } from '../../data/mockData';
 import { Plus, Edit3, Trash2, Users, IndianRupee, UserCheck, UserX, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { toLocalDateString } from '../../lib/date';
 
 export default function StaffManagement() {
   const { currentStaff, addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash } = useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [balanceDialog, setBalanceDialog] = useState(null);
   const [roleFilter, setRoleFilter] = useState('all');
   const [form, setForm] = useState({
-    name: '', role: 'mess_cook', phone: '', salary: '', joinDate: new Date().toISOString().split('T')[0], status: 'present'
+    name: '', role: 'mess_cook', phone: '', salary: '', joinDate: toLocalDateString(), status: 'present'
   });
 
   // Stats
@@ -39,7 +41,7 @@ export default function StaffManagement() {
 
   const openAddModal = () => {
     setEditingStaff(null);
-    setForm({ name: '', role: 'mess_cook', phone: '', salary: '', joinDate: new Date().toISOString().split('T')[0], status: 'present' });
+    setForm({ name: '', role: 'mess_cook', phone: '', salary: '', joinDate: toLocalDateString(), status: 'present' });
     setModalOpen(true);
   };
 
@@ -49,7 +51,7 @@ export default function StaffManagement() {
     setModalOpen(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (form.phone) {
@@ -60,14 +62,17 @@ export default function StaffManagement() {
       }
     }
 
-    const staffData = { ...form, salary: Number(form.salary) };
-    if (editingStaff) {
-      updateStaff(editingStaff.id, staffData);
-      toast.success('Staff updated successfully!');
-    } else {
-      addStaff(staffData);
-      toast.success('Staff member added!');
+    const salary = Number(form.salary);
+    if (!Number.isFinite(salary) || salary < 0) {
+      toast.error('Monthly salary cannot be negative');
+      return;
     }
+
+    const staffData = { ...form, salary };
+    const success = editingStaff
+      ? await updateStaff(editingStaff.id, staffData)
+      : await addStaff(staffData);
+    if (!success) return;
     setModalOpen(false);
   };
 
@@ -77,32 +82,40 @@ export default function StaffManagement() {
       message: `Remove ${staff.name} from staff?`,
       type: 'danger',
       confirmText: 'Remove',
-      onConfirm: () => {
-        deleteStaff(staff.id);
-        toast.success('Staff member removed');
-        setConfirmDialog(null);
+      onConfirm: async () => {
+        const success = await deleteStaff(staff.id);
+        if (success) setConfirmDialog(null);
       }
     });
   };
 
-  const handleStatusChange = (staff, newStatus) => {
-    updateStaff(staff.id, { status: newStatus });
-    toast.success(`${staff.name} marked as ${staffStatusLabels[newStatus].label}`);
+  const handleStatusChange = async (staff, newStatus) => {
+    await updateStaff(staff.id, { status: newStatus });
   };
 
   const handleAddSalary = (staff) => {
-    const amount = window.prompt(`Add monthly salary to balance for ${staff.name}?\nEnter amount to add (Default is base salary):`, staff.salary);
-    if (amount !== null && amount !== '' && !isNaN(Number(amount))) {
-      addStaffSalary(staff.id, Number(amount));
-    }
+    setBalanceDialog({ mode: 'salary', staff, amount: String(staff.salary || '') });
   };
 
   const handlePayCash = (staff) => {
     const defaultAmount = Math.max(0, staff.balance || 0);
-    const amount = window.prompt(`Record cash handed to ${staff.name} (Advance or Settlement):\nAmount to deduct from balance:`, defaultAmount || '');
-    if (amount !== null && amount !== '' && !isNaN(Number(amount))) {
-      payStaffCash(staff.id, Number(amount));
+    setBalanceDialog({ mode: 'payment', staff, amount: String(defaultAmount || '') });
+  };
+
+  const submitBalanceAdjustment = async (e) => {
+    e.preventDefault();
+    if (!balanceDialog) return;
+
+    const amount = Number(balanceDialog.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Amount must be greater than zero');
+      return;
     }
+
+    const success = balanceDialog.mode === 'salary'
+      ? await addStaffSalary(balanceDialog.staff.id, amount)
+      : await payStaffCash(balanceDialog.staff.id, amount);
+    if (success) setBalanceDialog(null);
   };
 
   const columns = [
@@ -260,6 +273,41 @@ export default function StaffManagement() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!balanceDialog}
+        onClose={() => setBalanceDialog(null)}
+        title={balanceDialog?.mode === 'salary' ? 'Add Salary Balance' : 'Record Cash Payment'}
+        size="sm"
+      >
+        {balanceDialog && (
+          <form onSubmit={submitBalanceAdjustment}>
+            <p style={{ marginBottom: '16px', color: 'var(--dark-text-secondary)' }}>
+              {balanceDialog.mode === 'salary'
+                ? `Add salary owed to ${balanceDialog.staff.name}.`
+                : `Record cash handed to ${balanceDialog.staff.name}.`}
+            </p>
+            <div className="form-group">
+              <label>Amount (₹) *</label>
+              <input
+                type="number"
+                min="1"
+                className="form-input"
+                value={balanceDialog.amount}
+                onChange={e => setBalanceDialog({ ...balanceDialog, amount: e.target.value })}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setBalanceDialog(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">
+                {balanceDialog.mode === 'salary' ? 'Add Salary' : 'Record Payment'}
+              </button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Confirmation Dialog */}

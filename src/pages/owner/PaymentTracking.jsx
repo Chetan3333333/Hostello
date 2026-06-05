@@ -4,10 +4,11 @@ import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import StatCard from '../../components/StatCard';
 import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } from 'lucide-react';
+import { getCurrentMonth, toLocalDateString } from '../../lib/date';
 
 export default function PaymentTracking() {
   const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment, updatePayment } = useApp();
-  const currentMonthStr = new Date().toISOString().substring(0, 7);
+  const currentMonthStr = getCurrentMonth();
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
@@ -32,7 +33,7 @@ export default function PaymentTracking() {
     setPaymentDialog({ payment, amount: payment.amount });
   };
 
-  const submitRecordPayment = (e) => {
+  const submitRecordPayment = async (e) => {
     e.preventDefault();
     if (!paymentDialog) return;
     
@@ -44,8 +45,8 @@ export default function PaymentTracking() {
       return;
     }
 
-    recordPayment(payment.id, amountReceived);
-    setPaymentDialog(null);
+    const success = await recordPayment(payment.id, amountReceived);
+    if (success) setPaymentDialog(null);
   };
 
   const handleRevertPayment = (payment) => {
@@ -58,9 +59,9 @@ export default function PaymentTracking() {
       message: `WARNING: Are you sure you want to permanently delete this payment record for ${payment.tenantName}? This action cannot be undone.`,
       type: 'danger',
       confirmText: 'Delete Permanently',
-      onConfirm: () => {
-        deletePayment(payment.id);
-        setConfirmDialog(null);
+      onConfirm: async () => {
+        const success = await deletePayment(payment.id);
+        if (success) setConfirmDialog(null);
       }
     });
   };
@@ -71,14 +72,14 @@ export default function PaymentTracking() {
       message: `Are you sure you want to write off ₹${payment.amount.toLocaleString()} for ${payment.tenantName}? This will archive the debt and remove it from your Dashboard's Total Outstanding amount.`,
       type: 'warning',
       confirmText: 'Write Off Debt',
-      onConfirm: () => {
-        updatePayment(payment.id, { status: 'written_off' });
-        setConfirmDialog(null);
+      onConfirm: async () => {
+        const success = await updatePayment(payment.id, { status: 'written_off' });
+        if (success) setConfirmDialog(null);
       }
     });
   };
 
-  const handleAddPayment = (e) => {
+  const handleAddPayment = async (e) => {
     e.preventDefault();
     const tenant = currentTenants.find(t => t.id === form.tenantId);
     if (!tenant) return;
@@ -87,17 +88,18 @@ export default function PaymentTracking() {
       alert(`A payment record for ${tenant.name} for ${form.month} already exists!`);
       return;
     }
-    addPayment({
+    const success = await addPayment({
       tenantId: tenant.id,
       tenantName: tenant.name,
       roomNumber: tenant.roomNumber,
       amount: Number(form.amount) || tenant.rentAmount,
       month: form.month,
       dueDate: `${form.month}-10`,
-      paidDate: form.status === 'paid' ? new Date().toISOString().split('T')[0] : null,
+      paidDate: form.status === 'paid' ? toLocalDateString() : null,
       status: form.status,
       receiptNote: form.receiptNote || `Rent for ${form.month}`,
     });
+    if (!success) return;
     setForm({ tenantId: '', amount: '', month: currentMonthStr, receiptNote: '', status: 'pending' });
     setModalOpen(false);
   };
@@ -208,7 +210,7 @@ export default function PaymentTracking() {
           <div className="form-row" style={{ marginTop: '12px' }}>
             <div className="form-group">
               <label>Amount (₹) *</label>
-              <input type="number" min="0" className="form-input" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required />
+              <input type="number" min="1" className="form-input" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} required />
             </div>
             <div className="form-group">
               <label>Month *</label>

@@ -11,6 +11,9 @@ ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
 -- Step 2: Drop any old policies if they exist (safety measure)
 DROP POLICY IF EXISTS "Owners can read own activity logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Allow app to insert logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Allow app to read logs" ON public.activity_logs;
+DROP POLICY IF EXISTS "Owners can manage their own hostel activity logs" ON public.activity_logs;
 
 -- Step 3: Create the read-only policy
 -- This ensures Hostel A can never see Hostel B's audit trail.
@@ -20,6 +23,5 @@ FOR SELECT
 TO authenticated
 USING (hostel_id = public.current_owner_hostel_id());
 
--- That's it. No INSERT/UPDATE/DELETE policies are created.
--- This means no human can tamper with the audit trail through the API.
--- The triggers bypass RLS because they run as "security definer" functions.
+REVOKE ALL ON public.activity_logs FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.activity_logs TO authenticated;

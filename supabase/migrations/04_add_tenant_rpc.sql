@@ -18,11 +18,17 @@ AS $$
 BEGIN
   -- 1. Insert the tenant profile
   INSERT INTO tenants
-  SELECT * FROM jsonb_populate_record(null::tenants, p_tenant);
+  SELECT * FROM jsonb_populate_record(
+    null::tenants,
+    p_tenant || jsonb_build_object('created_at', now())
+  );
 
   -- 2. Insert the first month's pending payment
   INSERT INTO payments
-  SELECT * FROM jsonb_populate_record(null::payments, p_payment);
+  SELECT * FROM jsonb_populate_record(
+    null::payments,
+    p_payment || jsonb_build_object('created_at', now())
+  );
 
   -- 3. Update the room occupancy and status
   UPDATE rooms 

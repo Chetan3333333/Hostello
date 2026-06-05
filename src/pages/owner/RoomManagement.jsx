@@ -39,13 +39,14 @@ export default function RoomManagement() {
     setModalOpen(true);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const capacity = getCapacityFromType(form.type);
     const currentOccupants = editingRoom ? editingRoom.currentOccupants : 0;
 
     // Bug 2 Fix: Duplicate room number check
-    const duplicate = currentRooms.find(r => r.number === form.number && (!editingRoom || r.id !== editingRoom.id));
+    const normalizedNumber = form.number.trim();
+    const duplicate = currentRooms.find(r => r.number.trim().toLowerCase() === normalizedNumber.toLowerCase() && (!editingRoom || r.id !== editingRoom.id));
     if (duplicate) {
       alert(`Room ${form.number} already exists! Please use a different room number.`);
       return;
@@ -62,6 +63,7 @@ export default function RoomManagement() {
 
     const roomData = {
       ...form,
+      number: normalizedNumber,
       price: Number(form.price),
       floor: Number(form.floor),
       capacity: capacity,
@@ -69,11 +71,10 @@ export default function RoomManagement() {
       status: finalStatus
     };
     delete roomData.isMaintenance; // clean up before sending to DB
-    if (editingRoom) {
-      updateRoom(editingRoom.id, roomData);
-    } else {
-      addRoom(roomData);
-    }
+    const success = editingRoom
+      ? await updateRoom(editingRoom.id, roomData)
+      : await addRoom(roomData);
+    if (!success) return;
     setModalOpen(false);
   };
 

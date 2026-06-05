@@ -1,3 +1,5 @@
+import { toLocalDateString } from '../lib/date.js';
+
 // Mock data for Hostello — Single hostel near Mallareddy Engineering College
 
 export const hostelsData = [
@@ -91,7 +93,7 @@ function generateTenants(rooms, hostelId) {
         idNumber: `${1000 + idx} ${2000 + o} ${3000 + idx + o}`,
         rentAmount: room.price,
         securityDeposit: room.price,
-        checkInDate: checkIn.toISOString().split('T')[0],
+        checkInDate: toLocalDateString(checkIn),
         checkOutDate: null,
         isActive: true,
       });
@@ -123,7 +125,7 @@ function generatePayments(tenants, hostelId) {
         roomNumber: tenant.roomNumber,
         amount: tenant.rentAmount,
         month: months[m],
-        dueDate: `${months[m]}-05`,
+        dueDate: `${months[m]}-10`,
         paidDate: paidDate,
         status: isPaid ? 'paid' : isOverdue ? 'overdue' : 'pending',
         method: isPaid ? methods[(tIdx + m) % methods.length] : null,

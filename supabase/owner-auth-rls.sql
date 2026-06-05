@@ -18,6 +18,7 @@ create table if not exists public.owner_profiles (
 );
 
 alter table public.hostels drop column if exists pin;
+alter table public.rooms add column if not exists is_archived boolean not null default false;
 
 alter table public.owner_profiles enable row level security;
 alter table public.hostels enable row level security;
@@ -31,20 +32,25 @@ returns text
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   select hostel_id
   from public.owner_profiles
   where user_id = auth.uid()
+    and role = 'owner'
   limit 1
 $$;
 
+revoke execute on function public.current_owner_hostel_id() from public, anon;
 grant execute on function public.current_owner_hostel_id() to authenticated;
 
 drop policy if exists "Owners can read own profile" on public.owner_profiles;
 drop policy if exists "Public can read hostel listings" on public.hostels;
 drop policy if exists "Owners can update own hostel" on public.hostels;
 drop policy if exists "Public can read room availability" on public.rooms;
+drop policy if exists "Public can read active room availability" on public.rooms;
+drop policy if exists "Owners can read own rooms" on public.rooms;
+drop policy if exists "Owners can update own profile" on public.owner_profiles;
 drop policy if exists "Owners can insert own rooms" on public.rooms;
 drop policy if exists "Owners can update own rooms" on public.rooms;
 drop policy if exists "Owners can delete own rooms" on public.rooms;
@@ -80,11 +86,17 @@ to authenticated
 using (id = public.current_owner_hostel_id())
 with check (id = public.current_owner_hostel_id());
 
-create policy "Public can read room availability"
+create policy "Public can read active room availability"
 on public.rooms
 for select
-to anon, authenticated
-using (true);
+to anon
+using (not is_archived);
+
+create policy "Owners can read own rooms"
+on public.rooms
+for select
+to authenticated
+using (hostel_id = public.current_owner_hostel_id());
 
 create policy "Owners can insert own rooms"
 on public.rooms
@@ -179,3 +191,9 @@ on public.staff
 for delete
 to authenticated
 using (hostel_id = public.current_owner_hostel_id());
+
+revoke select on public.rooms from anon;
+grant select (
+  id, hostel_id, number, floor, type, price, status, capacity,
+  current_occupants, amenities, has_attached_bath, has_ac, is_archived
+) on public.rooms to anon;

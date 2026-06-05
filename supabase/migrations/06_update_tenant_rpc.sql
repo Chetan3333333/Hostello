@@ -60,7 +60,15 @@ BEGIN
     UPDATE payments
     SET 
       room_number = CASE WHEN p_room_changed THEN p_new_room_number ELSE room_number END,
-      amount = CASE WHEN p_rent_changed THEN p_new_rent_amount ELSE amount END
+      amount = CASE
+        WHEN p_rent_changed AND (
+          SELECT count(*) <= 1
+          FROM payments bill_count
+          WHERE bill_count.tenant_id = p_tenant_id
+            AND bill_count.month = p_current_month
+        ) THEN p_new_rent_amount
+        ELSE amount
+      END
     WHERE tenant_id = p_tenant_id 
       AND month = p_current_month 
       AND status IN ('pending', 'overdue');

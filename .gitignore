@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+
+# Local database audit artifacts and credentials
+check_payments.cjs
+output.txt
+.db-audit*
 
 # Admin secrets (service role key) — NEVER commit this
 .admin.env

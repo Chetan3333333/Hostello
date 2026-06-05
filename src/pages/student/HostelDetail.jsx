@@ -4,11 +4,17 @@ import { Building2, MapPin, Star, Phone, MessageCircle, Mail, ArrowLeft, Shield,
 import { amenityLabels, roomTypeLabels } from '../../data/mockData';
 import '../../styles/student.css';
 
+const getMinPrice = (pricing) => {
+  const prices = Object.values(pricing || {}).map(Number).filter(Number.isFinite);
+  return prices.length > 0 ? Math.min(...prices) : null;
+};
+
 export default function HostelDetail() {
   const { id } = useParams();
   const { data } = useApp();
   const hostel = data.hostels.find(h => h.id === id);
-  const rooms = data.rooms.filter(r => r.hostelId === id);
+  const rooms = data.rooms.filter(r => r.hostelId === id && !r.isArchived);
+  const minPrice = getMinPrice(hostel?.pricing);
 
   if (!hostel) {
     return (
@@ -57,10 +63,10 @@ export default function HostelDetail() {
                 <span className={`hostel-type-badge-light ${hostel.type}`}>
                   {hostel.type === 'boys' ? '♂ Boys' : hostel.type === 'girls' ? '♀ Girls' : '⚥ Co-ed'}
                 </span>
-                <div className="hostel-search-rating"><Star size={16} fill="#FFB547" color="#FFB547" /> {hostel.rating}</div>
+                <div className="hostel-search-rating"><Star size={16} fill="#FFB547" color="#FFB547" /> {hostel.rating || 'New'}</div>
               </div>
               <h1>{hostel.name}</h1>
-              <p className="detail-location"><MapPin size={16} /> {hostel.address}</p>
+              <p className="detail-location"><MapPin size={16} /> {hostel.address || 'Location not provided'}</p>
               {hostel.nearbyLandmarks && hostel.nearbyLandmarks.length > 0 && (
                 <div className="detail-landmarks">
                   {hostel.nearbyLandmarks.slice(0, 3).map((lm, i) => (
@@ -74,14 +80,14 @@ export default function HostelDetail() {
           {/* Description */}
           <div className="detail-section animate-slide-up" style={{ animationDelay: '100ms' }}>
             <h2>About</h2>
-            <p className="detail-description">{hostel.description}</p>
+            <p className="detail-description">{hostel.description || 'Description not provided yet.'}</p>
           </div>
 
           {/* Amenities */}
           <div className="detail-section animate-slide-up" style={{ animationDelay: '150ms' }}>
             <h2>Amenities</h2>
             <div className="detail-amenities-grid">
-              {hostel.amenities.map(a => (
+              {(hostel.amenities || []).map(a => (
                 <div key={a} className="detail-amenity">
                   <Check size={16} style={{ color: 'var(--success)' }} />
                   <span>{amenityLabels[a]?.label || a}</span>
@@ -102,7 +108,7 @@ export default function HostelDetail() {
                       {rt.available > 0 ? `${rt.available} available` : 'Full'}
                     </span>
                   </div>
-                  <div className="room-type-price">₹{rt.price.toLocaleString()}<span>/month</span></div>
+                  <div className="room-type-price">₹{Number(rt.price || 0).toLocaleString()}<span>/month</span></div>
                   <div className="room-type-total">{rt.total} total rooms</div>
                 </div>
               ))}
@@ -131,7 +137,9 @@ export default function HostelDetail() {
             <h3>Contact This Hostel</h3>
             <div className="contact-price-range">
               <span className="price-from">Starting from</span>
-              <span className="contact-price">₹{Math.min(...Object.values(hostel.pricing)).toLocaleString()}<span>/month</span></span>
+              <span className="contact-price">
+                {minPrice === null ? 'Price on request' : <>₹{minPrice.toLocaleString()}<span>/month</span></>}
+              </span>
             </div>
             <div className="contact-availability">
               <span className={availableRooms > 0 ? 'text-success' : 'text-danger'}>
@@ -139,12 +147,16 @@ export default function HostelDetail() {
               </span>
             </div>
             <div className="contact-actions">
-              <a href={`tel:${hostel.phone}`} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
-                <Phone size={18} /> Call Now
-              </a>
-              <a href={`https://wa.me/91${hostel.whatsapp}?text=Hi, I found your hostel on Hostello. I'm interested in booking a room.`} target="_blank" className="btn btn-success btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
-                <MessageCircle size={18} /> WhatsApp
-              </a>
+              {hostel.phone && (
+                <a href={`tel:${hostel.phone}`} className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
+                  <Phone size={18} /> Call Now
+                </a>
+              )}
+              {hostel.whatsapp && (
+                <a href={`https://wa.me/91${hostel.whatsapp}?text=Hi, I found your hostel on Hostello. I'm interested in booking a room.`} target="_blank" rel="noreferrer" className="btn btn-success btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
+                  <MessageCircle size={18} /> WhatsApp
+                </a>
+              )}
               {hostel.email && (
                 <a href={`mailto:${hostel.email}`} className="btn btn-outline btn-lg" style={{ width: '100%', justifyContent: 'center', borderColor: 'var(--light-border)', color: 'var(--light-text)' }}>
                   <Mail size={18} /> Email
@@ -152,9 +164,11 @@ export default function HostelDetail() {
               )}
             </div>
             <div className="contact-info-items">
-              <div className="contact-info-item">
-                <Phone size={14} /> <span>{hostel.phone}</span>
-              </div>
+              {hostel.phone && (
+                <div className="contact-info-item">
+                  <Phone size={14} /> <span>{hostel.phone}</span>
+                </div>
+              )}
               {hostel.email && (
                 <div className="contact-info-item">
                   <Mail size={14} /> <span>{hostel.email}</span>

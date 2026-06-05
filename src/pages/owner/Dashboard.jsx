@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
-import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock, Settings, Search, Filter } from 'lucide-react';
+import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock, Settings, Search } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
 
@@ -34,7 +34,7 @@ function CustomTooltip({ active, payload }) {
 }
 
 export default function Dashboard() {
-  const { getStats, currentPayments, data } = useApp();
+  const { getStats, currentPayments, data, hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [warningsOnly, setWarningsOnly] = useState(false);
   const stats = getStats();
@@ -207,6 +207,10 @@ export default function Dashboard() {
                   Icon = Wrench;
                   dotColor = 'warning';
                   label = 'Room';
+                } else if (act.type === 'staff') {
+                  Icon = UserCog;
+                  dotColor = 'primary';
+                  label = 'Staff';
                 }
 
                 // Global override for ANY security warning
@@ -226,13 +230,27 @@ export default function Dashboard() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                         <span className={`badge badge-${dotColor}`} style={{ fontSize: '0.65rem', padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#9B9BB4' }}>{getRelativeTime(act.createdAt || act.created_at)}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#9B9BB4' }}>
+                          {getRelativeTime(act.createdAt || act.created_at)} · {act.actorType === 'owner' ? 'Owner' : 'Automated'}
+                        </span>
                       </div>
                       <div className="activity-text" style={{ fontSize: '0.875rem', color: '#EEEEF5', lineHeight: '1.5' }}>{act.message}</div>
                     </div>
                   </div>
                 );
               })
+            )}
+            {hasMoreActivityLogs && !searchTerm && !warningsOnly && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={loadMoreActivityLogs}
+                disabled={loadingMoreActivityLogs}
+                style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}
+              >
+                <Clock size={14} />
+                {loadingMoreActivityLogs ? 'Loading...' : 'Load earlier activity'}
+              </button>
             )}
           </div>
         </div>

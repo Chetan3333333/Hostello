@@ -4,6 +4,7 @@
 CREATE OR REPLACE FUNCTION log_room_activity()
 RETURNS TRIGGER
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
@@ -56,6 +57,7 @@ FOR EACH ROW EXECUTE FUNCTION log_room_activity();
 CREATE OR REPLACE FUNCTION log_tenant_activity()
 RETURNS TRIGGER
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
@@ -96,6 +98,7 @@ FOR EACH ROW EXECUTE FUNCTION log_tenant_activity();
 CREATE OR REPLACE FUNCTION log_payment_activity()
 RETURNS TRIGGER
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 BEGIN
   IF (TG_OP = 'INSERT') THEN
@@ -142,3 +145,7 @@ DROP TRIGGER IF EXISTS trigger_payment_activity ON payments;
 CREATE TRIGGER trigger_payment_activity
 AFTER INSERT OR UPDATE OR DELETE ON payments
 FOR EACH ROW EXECUTE FUNCTION log_payment_activity();
+
+REVOKE EXECUTE ON FUNCTION log_room_activity() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION log_tenant_activity() FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION log_payment_activity() FROM PUBLIC, anon, authenticated;

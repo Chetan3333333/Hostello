@@ -6,7 +6,8 @@ import { amenityLabels } from '../../data/mockData';
 import '../../styles/student.css';
 
 const getMinPrice = (pricing) => {
-  return pricing && Object.keys(pricing).length > 0 ? Math.min(...Object.values(pricing)) : 0;
+  const prices = Object.values(pricing || {}).map(Number).filter(Number.isFinite);
+  return prices.length > 0 ? Math.min(...prices) : null;
 };
 
 export default function HostelSearch() {
@@ -19,23 +20,32 @@ export default function HostelSearch() {
   const [showFilters, setShowFilters] = useState(false);
 
   const hostels = useMemo(() => {
-    let result = data.hostels;
+    let result = [...data.hostels];
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter(h => h.name.toLowerCase().includes(q) || h.address.toLowerCase().includes(q));
+      result = result.filter(h =>
+        (h.name || '').toLowerCase().includes(q)
+        || (h.address || '').toLowerCase().includes(q)
+      );
     }
     if (typeFilter !== 'all') result = result.filter(h => h.type === typeFilter);
     result = result.filter(h => {
       const minPrice = getMinPrice(h.pricing);
-      return minPrice >= priceRange[0] && minPrice <= priceRange[1];
+      return minPrice === null || (minPrice >= priceRange[0] && minPrice <= priceRange[1]);
     });
     if (amenityFilter.length > 0) {
-      result = result.filter(h => amenityFilter.every(a => h.amenities.includes(a)));
+      result = result.filter(h => amenityFilter.every(a => (h.amenities || []).includes(a)));
     }
 
-    if (sortBy === 'price-low') result.sort((a, b) => getMinPrice(a.pricing) - getMinPrice(b.pricing));
-    else if (sortBy === 'price-high') result.sort((a, b) => getMinPrice(b.pricing) - getMinPrice(a.pricing));
-    else if (sortBy === 'rating') result.sort((a, b) => b.rating - a.rating);
+    if (sortBy === 'price-low') result.sort((a, b) => (getMinPrice(a.pricing) ?? Infinity) - (getMinPrice(b.pricing) ?? Infinity));
+    else if (sortBy === 'price-high') result.sort((a, b) => {
+      const aPrice = getMinPrice(a.pricing);
+      const bPrice = getMinPrice(b.pricing);
+      if (aPrice === null) return 1;
+      if (bPrice === null) return -1;
+      return bPrice - aPrice;
+    });
+    else if (sortBy === 'rating') result.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 
     return result;
   }, [data.hostels, search, typeFilter, priceRange, amenityFilter, sortBy]);
@@ -114,7 +124,7 @@ export default function HostelSearch() {
 
         <div className="search-results-grid">
           {hostels.map(hostel => {
-            const rooms = data.rooms.filter(r => r.hostelId === hostel.id);
+            const rooms = data.rooms.filter(r => r.hostelId === hostel.id && !r.isArchived);
             const available = rooms.filter(r => r.status === 'available').length;
             return (
               <Link to={`/hostel/${hostel.id}`} className="hostel-search-card" key={hostel.id}>
@@ -134,16 +144,18 @@ export default function HostelSearch() {
                       <Star size={14} fill="#FFB547" color="#FFB547" /> {hostel.rating}
                     </div>
                   </div>
-                  <p className="hostel-search-location"><MapPin size={14} /> {hostel.nearbyLandmarks?.[0] || hostel.address.split(',')[0]}</p>
+                  <p className="hostel-search-location"><MapPin size={14} /> {hostel.nearbyLandmarks?.[0] || hostel.address?.split(',')[0] || 'Location not provided'}</p>
                   <div className="hostel-search-amenities">
-                    {hostel.amenities.slice(0, 5).map(a => (
+                    {(hostel.amenities || []).slice(0, 5).map(a => (
                       <span key={a} className="amenity-tag-light">{amenityLabels[a]?.label || a}</span>
                     ))}
                   </div>
                   <div className="hostel-search-bottom">
                     <div>
                       <span className="price-from">Starting from</span>
-                      <span className="price-amount">₹{getMinPrice(hostel.pricing).toLocaleString()}<span className="price-period">/month</span></span>
+                      {getMinPrice(hostel.pricing) === null
+                        ? <span className="price-amount">Price on request</span>
+                        : <span className="price-amount">₹{getMinPrice(hostel.pricing).toLocaleString()}<span className="price-period">/month</span></span>}
                     </div>
                     <span className="view-details-btn">View Details <ArrowRight size={14} /></span>
                   </div>

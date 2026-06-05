@@ -244,6 +244,8 @@ select.form-input {
 .badge-warning { background: var(--warning-bg); color: var(--warning); }
 .badge-danger { background: var(--danger-bg); color: var(--danger); }
 .badge-primary { background: rgba(108,92,231,0.12); color: var(--primary-light); }
+.badge-accent { background: rgba(0,210,255,0.12); color: var(--accent-light); }
+.badge-ghost { background: rgba(155,155,180,0.08); color: var(--dark-text-muted); }
 .badge-neutral { background: rgba(155,155,180,0.12); color: var(--dark-text-secondary); }
 
 /* ===== ANIMATIONS ===== */

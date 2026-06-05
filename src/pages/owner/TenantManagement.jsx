@@ -3,6 +3,7 @@ import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
 import Modal from '../../components/Modal';
 import { Plus, UserMinus, Eye, Edit2, ArrowRightLeft } from 'lucide-react';
+import { toLocalDateString } from '../../lib/date';
 
 export default function TenantManagement() {
   const { currentTenants, currentRooms, currentPayments, addTenant, updateTenant, checkoutTenant, swapTenants } = useApp();
@@ -12,11 +13,11 @@ export default function TenantManagement() {
   const [editingTenantId, setEditingTenantId] = useState(null);
   const [swapModalOpen, setSwapModalOpen] = useState(false);
   const [swapForm, setSwapForm] = useState({ tenant1: '', tenant2: '' });
-  const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: toLocalDateString() });
 
-  const availableRooms = currentRooms.filter(r => r.status === 'available' || r.status === 'maintenance' || (editingTenantId && r.id === form.roomId));
+  const availableRooms = currentRooms.filter(r => (r.status === 'available' || r.status === 'maintenance') || (editingTenantId && r.id === form.roomId));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     // Validate phone number format (exactly 10 digits)
@@ -41,25 +42,24 @@ export default function TenantManagement() {
       roomNumber: room?.number || '',
     };
 
-    if (editingTenantId) {
-      updateTenant(editingTenantId, tenantData);
-    } else {
-      addTenant(tenantData);
-    }
+    const success = editingTenantId
+      ? await updateTenant(editingTenantId, tenantData)
+      : await addTenant(tenantData);
 
+    if (!success) return;
     setModalOpen(false);
     setEditingTenantId(null);
-    setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
+    setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: toLocalDateString() });
   };
 
   const handleCheckout = (tenant) => {
     setCheckoutData(tenant);
   };
 
-  const confirmCheckout = () => {
+  const confirmCheckout = async () => {
     if (checkoutData) {
-      checkoutTenant(checkoutData.id);
-      setCheckoutData(null);
+      const success = await checkoutTenant(checkoutData.id);
+      if (success) setCheckoutData(null);
     }
   };
 
@@ -95,7 +95,7 @@ export default function TenantManagement() {
   ];
 
   const openAddModal = () => {
-    setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: new Date().toISOString().split('T')[0] });
+    setForm({ name: '', phone: '', email: '', college: '', year: '1st Year', parentName: '', parentPhone: '', idProof: 'Aadhar Card', idNumber: '', roomId: '', rentAmount: '', securityDeposit: '', checkInDate: toLocalDateString() });
     setEditingTenantId(null);
     setModalOpen(true);
   };
@@ -120,13 +120,14 @@ export default function TenantManagement() {
     setModalOpen(true);
   };
 
-  const handleSwap = (e) => {
+  const handleSwap = async (e) => {
     e.preventDefault();
     if (swapForm.tenant1 === swapForm.tenant2) {
       alert("Please select two different tenants to swap.");
       return;
     }
-    swapTenants(swapForm.tenant1, swapForm.tenant2);
+    const success = await swapTenants(swapForm.tenant1, swapForm.tenant2);
+    if (!success) return;
     setSwapModalOpen(false);
     setSwapForm({ tenant1: '', tenant2: '' });
   };
