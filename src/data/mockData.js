@@ -136,23 +136,6 @@ function generatePayments(tenants, hostelId) {
   return payments;
 }
 
-// Staff for the hostel
-function generateStaff(hostelId) {
-  const staffList = [
-    { name: 'Ramesh Kumar', role: 'mess_cook', phone: '9876001001', salary: 15000, joinDate: '2022-06-15', status: 'present' },
-    { name: 'Lakshmi Devi', role: 'helper', phone: '9876001002', salary: 8000, joinDate: '2023-01-10', status: 'present' },
-    { name: 'Surender Singh', role: 'security', phone: '9876001003', salary: 12000, joinDate: '2021-08-01', status: 'present' },
-    { name: 'Parveen Begum', role: 'cleaning', phone: '9876001004', salary: 9000, joinDate: '2023-03-20', status: 'leave' },
-    { name: 'Raju Yadav', role: 'helper', phone: '9876001005', salary: 8000, joinDate: '2024-02-01', status: 'present' },
-  ];
-  
-  return staffList.map((s, i) => ({
-    ...s,
-    id: `staff-${hostelId}-${i}`,
-    hostelId,
-  }));
-}
-
 // Build complete dataset
 export function getInitialData({ persist = true } = {}) {
   const storage = typeof localStorage === 'undefined' ? null : localStorage;
@@ -161,7 +144,7 @@ export function getInitialData({ persist = true } = {}) {
     try {
       const parsed = JSON.parse(existing);
       // Check if data has the current single-hostel structure
-      if (parsed.staff && parsed.hostels?.length === 1 && !parsed.hostels[0]?.pin && !parsed.chats) {
+      if (parsed.hostels?.length === 1 && !parsed.hostels[0]?.pin && !parsed.chats) {
         return parsed;
       }
       console.log('Regenerating data for single-hostel mode...');
@@ -174,14 +157,12 @@ export function getInitialData({ persist = true } = {}) {
   const rooms = generateRooms(hostel);
   const tenants = generateTenants(rooms, hostel.id);
   const payments = generatePayments(tenants, hostel.id);
-  const staff = generateStaff(hostel.id);
   
   const data = {
     hostels: hostelsData,
     rooms,
     tenants,
     payments,
-    staff,
     currentHostelId: hostel.id,
     ownerAuth: null,
   };
@@ -230,18 +211,4 @@ export const roomTypeLabels = {
   '18_sharing': '18 Sharing',
   '19_sharing': '19 Sharing',
   '20_sharing': '20 Sharing',
-};
-
-export const staffRoleLabels = {
-  mess_cook: 'Mess Cook',
-  helper: 'Helper',
-  cleaning: 'Cleaning Staff',
-  security: 'Watchman / Security',
-  warden: 'Warden',
-};
-
-export const staffStatusLabels = {
-  present: { label: 'Present', color: 'success' },
-  absent: { label: 'Absent', color: 'danger' },
-  leave: { label: 'On Leave', color: 'warning' },
 };

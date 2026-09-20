@@ -208,6 +208,7 @@ export default function Dashboard() {
                   dotColor = 'warning';
                   label = 'Room';
                 } else if (act.type === 'staff') {
+                  // The Staff section was removed, but older log entries of this type stay readable.
                   Icon = UserCog;
                   dotColor = 'primary';
                   label = 'Staff';
@@ -269,9 +270,6 @@ export default function Dashboard() {
             </Link>
             <Link to="/owner/rooms" className="quick-action-btn">
               <Wrench size={20} /> Manage Rooms
-            </Link>
-            <Link to="/owner/staff" className="quick-action-btn">
-              <UserCog size={20} /> Manage Staff
             </Link>
           </div>
         </div>

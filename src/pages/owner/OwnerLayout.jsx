@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, Users, CreditCard, UserCog, Building2, Menu, X, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, BedDouble, Users, CreditCard, Building2, Menu, X, Bell, LogOut } from 'lucide-react';
 import { useApp } from '../../hooks/useApp';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -10,7 +10,6 @@ const navItems = [
   { to: '/owner/rooms', icon: BedDouble, label: 'Rooms' },
   { to: '/owner/tenants', icon: Users, label: 'Tenants' },
   { to: '/owner/payments', icon: CreditCard, label: 'Payments' },
-  { to: '/owner/staff', icon: UserCog, label: 'Staff' },
   { to: '/owner/profile', icon: Building2, label: 'Profile' },
 ];
 

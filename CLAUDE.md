@@ -37,8 +37,9 @@ Codex, Antigravity, …) and to every human working on this repository.
   hostel).
 - Public pages (no login): `/` landing, `/search`, `/hostel/:id`. They read the
   `hostels` table and a limited set of `rooms` columns.
-- Owner app (`/owner/*`, login required): dashboard, rooms, tenants, payments,
-  staff (being removed, see section 3) and hostel profile.
+- Owner app (`/owner/*`, login required): dashboard, rooms, tenants, payments
+  and hostel profile. (The Staff section was removed on 2026-09-20; see
+  section 3.)
 - `src/context/AppContext.jsx` loads all of the owner's data at login and
   exposes every action the pages use.
 - Changes that touch several tables go through database functions in
@@ -58,10 +59,13 @@ Codex, Antigravity, …) and to every human working on this repository.
   dataset (all seeded tenants unchanged, demo listing "Sri Sai Boys Hostel")
   plus a few entries added through the app. Proposed: go live from a clean
   database.
-- **Staff section is being removed** (owner's decision, 2026-09-20).
-  Phase 1 removes it from the code. Phase 2, later and only after Phase 1 is
-  verified in production and a backup exists, removes the staff tables and
-  functions with a new migration. Do not add staff features back.
+- **Staff section removed** (owner's decision, 2026-09-20).
+  Phase 1 (done): removed from the code. `/owner/staff` now redirects to the
+  dashboard, and older "staff" entries in the activity log still display.
+  Phase 2 (pending): after Phase 1 is verified in production and a backup
+  exists, a new migration removes the staff tables and functions from the
+  database. Until then they remain in the database, unused by the app.
+  Do not add staff features back.
 - **Known database drift:** the live database contains objects that no file in
   this repository creates: table `staff_payments`, functions
   `generate_staff_salaries` and `log_staff_payment_activity`, extra `staff`

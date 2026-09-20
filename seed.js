@@ -39,7 +39,6 @@ async function seed() {
   await upsertTable('rooms', data.rooms);
   await upsertTable('tenants', data.tenants);
   await upsertTable('payments', data.payments);
-  await upsertTable('staff', data.staff);
 
   console.log('Seeding complete.');
 }

@@ -1161,50 +1161,6 @@ select.login-input {
 .chat-empty-state p { font-size: 0.875rem; }
 
 /* ============================================================
-   STAFF MANAGEMENT
-   ============================================================ */
-.staff-avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--primary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.8rem;
-  color: white;
-  flex-shrink: 0;
-}
-
-.staff-status-select {
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  font-size: 0.75rem;
-  font-weight: 600;
-  border: 1px solid transparent;
-  cursor: pointer;
-  appearance: auto;
-  background: var(--dark-card);
-  color: var(--dark-text);
-}
-.staff-status-select.status-success {
-  background: rgba(0,196,140,0.12);
-  color: var(--success);
-  border-color: rgba(0,196,140,0.2);
-}
-.staff-status-select.status-danger {
-  background: rgba(255,107,107,0.12);
-  color: var(--danger);
-  border-color: rgba(255,107,107,0.2);
-}
-.staff-status-select.status-warning {
-  background: rgba(255,181,71,0.12);
-  color: var(--warning);
-  border-color: rgba(255,181,71,0.2);
-}
-
-/* ============================================================
    RESPONSIVE — NEW SECTIONS
    ============================================================ */
 @media (max-width: 768px) {
