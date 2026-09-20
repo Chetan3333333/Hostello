@@ -1,0 +1,4 @@
+# Keep line endings consistent no matter which computer or tool commits.
+# Files are stored in the repository with LF endings; Git for Windows can still
+# show them with CRLF in your working copy. This changes no file contents.
+* text=auto
