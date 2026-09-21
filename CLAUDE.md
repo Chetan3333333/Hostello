@@ -45,34 +45,35 @@ Codex, Antigravity, …) and to every human working on this repository.
 - Changes that touch several tables go through database functions in
   `supabase/migrations/08_secure_transactions.sql`. They run with the caller's
   permissions, so row-level security still applies.
-- Database triggers (migration 09) record changes to rooms, tenants, payments
-  and staff in `activity_logs`. The app can read the log but cannot edit or
+- Database triggers (migration 09) record changes to rooms, tenants and
+  payments in `activity_logs`. The app can read the log but cannot edit or
   delete it.
 - Billing: the pg_cron job `daily_payment_automation` runs
   `process_daily_payments()` every day at 00:00 IST. It marks unpaid bills past
   their due date as overdue and, on the 1st of the month only, creates that
   month's bill for every active tenant (due on the 10th).
 
-## 3. Current state (updated 2026-09-20)
+## 3. Current state (updated 2026-09-21)
 
 - **Not in real use yet.** As of 2026-09-19 the live database held the demo
   dataset (all seeded tenants unchanged, demo listing "Sri Sai Boys Hostel")
   plus a few entries added through the app. Proposed: go live from a clean
   database.
 - **Staff section removed** (owner's decision, 2026-09-20).
-  Phase 1 (done): removed from the code. `/owner/staff` now redirects to the
+  Phase 1 (2026-09-20): removed from the code. `/owner/staff` redirects to the
   dashboard, and older "staff" entries in the activity log still display.
-  Phase 2 (pending): after Phase 1 is verified in production and a backup
-  exists, a new migration removes the staff tables and functions from the
-  database. Until then they remain in the database, unused by the app.
-  Do not add staff features back.
-- **Known database drift:** the live database contains objects that no file in
-  this repository creates: table `staff_payments`, functions
-  `generate_staff_salaries` and `log_staff_payment_activity`, extra `staff`
-  columns, and no `staff.balance` column or `adjust_staff_balance` function.
-  Phase 2 removes all of it.
+  Phase 2 (2026-09-21): migration 11 removed the staff tables and functions
+  from the live database. The owner confirmed the staff data was not needed,
+  so none was kept. Do not add staff features back.
+- **Earlier database drift resolved:** the undocumented staff redesign that
+  existed only in the live database (`staff_payments`,
+  `generate_staff_salaries`, `log_staff_payment_activity`) was removed by
+  migration 11.
+- **Migration history:** Supabase's migration history starts at
+  `11_remove_staff` (applied 2026-09-21). Migrations 00-10 were run by hand in
+  the SQL Editor before that and are not listed there.
 - **Access rules are not all in migrations.** The row-level security policies
-  for `hostels`, `tenants`, `payments`, `staff` and `owner_profiles` live in
+  for `hostels`, `tenants`, `payments` and `owner_profiles` live in
   `supabase/owner-auth-rls.sql`. A database built from `migrations/` alone
   denies everything until that file is also run.
 - **API keys:** Supabase is deprecating the legacy anon/service_role keys by

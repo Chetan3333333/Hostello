@@ -25,7 +25,6 @@ alter table public.hostels enable row level security;
 alter table public.rooms enable row level security;
 alter table public.tenants enable row level security;
 alter table public.payments enable row level security;
-alter table public.staff enable row level security;
 
 create or replace function public.current_owner_hostel_id()
 returns text
@@ -62,10 +61,6 @@ drop policy if exists "Owners can read own payments" on public.payments;
 drop policy if exists "Owners can insert own payments" on public.payments;
 drop policy if exists "Owners can update own payments" on public.payments;
 drop policy if exists "Owners can delete own payments" on public.payments;
-drop policy if exists "Owners can read own staff" on public.staff;
-drop policy if exists "Owners can insert own staff" on public.staff;
-drop policy if exists "Owners can update own staff" on public.staff;
-drop policy if exists "Owners can delete own staff" on public.staff;
 
 create policy "Owners can read own profile"
 on public.owner_profiles
@@ -163,31 +158,6 @@ with check (hostel_id = public.current_owner_hostel_id());
 
 create policy "Owners can delete own payments"
 on public.payments
-for delete
-to authenticated
-using (hostel_id = public.current_owner_hostel_id());
-
-create policy "Owners can read own staff"
-on public.staff
-for select
-to authenticated
-using (hostel_id = public.current_owner_hostel_id());
-
-create policy "Owners can insert own staff"
-on public.staff
-for insert
-to authenticated
-with check (hostel_id = public.current_owner_hostel_id());
-
-create policy "Owners can update own staff"
-on public.staff
-for update
-to authenticated
-using (hostel_id = public.current_owner_hostel_id())
-with check (hostel_id = public.current_owner_hostel_id());
-
-create policy "Owners can delete own staff"
-on public.staff
 for delete
 to authenticated
 using (hostel_id = public.current_owner_hostel_id());
