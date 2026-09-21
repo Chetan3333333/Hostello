@@ -16,7 +16,6 @@ async function wipeData() {
   await deleteTableData('payments');
   await deleteTableData('tenants');
   await deleteTableData('rooms');
-  await deleteTableData('staff');
 
   console.log('Data wiped successfully. Hostels and owner mappings were kept.');
 }

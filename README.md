@@ -1,8 +1,9 @@
 # Hostello
 
 Hostello is a Supabase-backed hostel operations app for room inventory, tenant
-management, monthly rent billing, staff balances, and an immutable owner audit
-timeline.
+management, monthly rent billing, and an immutable owner audit timeline.
+
+Before changing anything, read `CLAUDE.md` and `docs/CHANGE_PROCESS.md`.
 
 ## Local Setup
 

@@ -11,7 +11,6 @@ const Dashboard = lazy(() => import('./pages/owner/Dashboard'));
 const RoomManagement = lazy(() => import('./pages/owner/RoomManagement'));
 const TenantManagement = lazy(() => import('./pages/owner/TenantManagement'));
 const PaymentTracking = lazy(() => import('./pages/owner/PaymentTracking'));
-const StaffManagement = lazy(() => import('./pages/owner/StaffManagement'));
 const HostelProfile = lazy(() => import('./pages/owner/HostelProfile'));
 const HostelSearch = lazy(() => import('./pages/student/HostelSearch'));
 const HostelDetail = lazy(() => import('./pages/student/HostelDetail'));
@@ -56,7 +55,8 @@ function AppRoutes() {
         <Route path="rooms" element={<RoomManagement />} />
         <Route path="tenants" element={<TenantManagement />} />
         <Route path="payments" element={<PaymentTracking />} />
-        <Route path="staff" element={<StaffManagement />} />
+        {/* Staff section removed 2026-09-20: old links and bookmarks go to the dashboard */}
+        <Route path="staff" element={<Navigate to="/owner/dashboard" replace />} />
         <Route path="profile" element={<HostelProfile />} />
       </Route>
     </Routes>

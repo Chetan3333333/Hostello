@@ -12,7 +12,6 @@ const emptyData = {
   rooms: [],
   tenants: [],
   payments: [],
-  staff: [],
   activityLogs: []
 };
 
@@ -79,7 +78,6 @@ export function AppProvider({ children }) {
       ...prev,
       tenants: [],
       payments: [],
-      staff: [],
       activityLogs: []
     }));
   }, []);
@@ -99,14 +97,12 @@ export function AppProvider({ children }) {
       { data: roomsData, error: roomsError },
       { data: tenantsData, error: tenantsError },
       { data: paymentsData, error: paymentsError },
-      { data: staffData, error: staffError },
       { data: activityLogsData, error: activityLogsError }
     ] = await Promise.all([
       supabase.from('hostels').select('*').eq('id', hostelId).single(),
       supabase.from('rooms').select('*').eq('hostel_id', hostelId),
       supabase.from('tenants').select('*').eq('hostel_id', hostelId),
       supabase.from('payments').select('*').eq('hostel_id', hostelId),
-      supabase.from('staff').select('*').eq('hostel_id', hostelId),
       supabase.from('activity_logs')
         .select('*')
         .eq('hostel_id', hostelId)
@@ -115,7 +111,7 @@ export function AppProvider({ children }) {
         .limit(ACTIVITY_PAGE_SIZE)
     ]);
 
-    const firstError = hostelError || roomsError || tenantsError || paymentsError || staffError || activityLogsError;
+    const firstError = hostelError || roomsError || tenantsError || paymentsError || activityLogsError;
     if (firstError) throw firstError;
 
     const mappedHostel = mapKeys([hostelData])[0];
@@ -133,7 +129,6 @@ export function AppProvider({ children }) {
       ],
       tenants: mapKeys(tenantsData),
       payments: mapKeys(paymentsData),
-      staff: mapKeys(staffData),
       activityLogs: mapKeys(activityLogsData || [])
     }));
   }, []);
@@ -295,7 +290,6 @@ export function AppProvider({ children }) {
   const currentRooms = useMemo(() => data.rooms.filter(r => r.hostelId === activeHostelId && !r.isArchived), [data.rooms, activeHostelId]);
   const currentTenants = useMemo(() => data.tenants.filter(t => t.hostelId === activeHostelId && t.isActive), [data.tenants, activeHostelId]);
   const currentPayments = useMemo(() => data.payments.filter(p => p.hostelId === activeHostelId), [data.payments, activeHostelId]);
-  const currentStaff = useMemo(() => data.staff.filter(s => s.hostelId === activeHostelId), [data.staff, activeHostelId]);
 
   const addRoom = useCallback(async (room) => {
     const newRoom = { ...room, id: createId('room'), hostelId: activeHostelId, isArchived: false };
@@ -848,107 +842,6 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  const addStaff = useCallback(async (staffMember) => {
-    const newStaff = { ...staffMember, balance: 0, id: createId('staff'), hostelId: activeHostelId };
-    try {
-      const { error } = await supabase.from('staff').insert([toSnakeCase(newStaff)]);
-      if (error) throw error;
-      setData(prev => ({ ...prev, staff: [...prev.staff, newStaff] }));
-      toast.success('Staff added');
-      return true;
-    } catch (err) {
-      toast.error('Failed to add staff');
-      console.error(err);
-      return false;
-    }
-  }, [activeHostelId]);
-
-  const updateStaff = useCallback(async (staffId, updates) => {
-    try {
-      const { error } = await supabase.from('staff').update(toSnakeCase(updates)).eq('id', staffId);
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, ...updates } : s)
-      }));
-      toast.success('Staff updated');
-      return true;
-    } catch (err) {
-      toast.error('Failed to update staff');
-      console.error(err);
-      return false;
-    }
-  }, []);
-
-  const deleteStaff = useCallback(async (staffId) => {
-    try {
-      const { error } = await supabase.from('staff').delete().eq('id', staffId);
-      if (error) throw error;
-      setData(prev => ({ ...prev, staff: prev.staff.filter(s => s.id !== staffId) }));
-      toast.success('Staff deleted');
-      return true;
-    } catch (err) {
-      toast.error('Failed to delete staff');
-      console.error(err);
-      return false;
-    }
-  }, []);
-
-  const addStaffSalary = useCallback(async (staffId, amount) => {
-    const staffMember = data.staff.find(s => s.id === staffId);
-    const numericAmount = Number(amount);
-    if (!staffMember || !Number.isFinite(numericAmount) || numericAmount <= 0) {
-      toast.error('Salary amount must be greater than zero');
-      return false;
-    }
-    try {
-      const { data: newBalance, error } = await supabase.rpc('adjust_staff_balance', {
-        p_staff_id: staffId,
-        p_delta: numericAmount,
-        p_reason: 'salary'
-      });
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: Number(newBalance) } : s)
-      }));
-      toast.success('Salary added to balance');
-      return true;
-    } catch (err) {
-      toast.error('Failed to add salary');
-      console.error(err);
-      return false;
-    }
-  }, [data.staff]);
-
-  const payStaffCash = useCallback(async (staffId, amount) => {
-    const staffMember = data.staff.find(s => s.id === staffId);
-    const numericAmount = Number(amount);
-    if (!staffMember || !Number.isFinite(numericAmount) || numericAmount <= 0) {
-      toast.error('Cash payment must be greater than zero');
-      return false;
-    }
-    try {
-      const { data: newBalance, error } = await supabase.rpc('adjust_staff_balance', {
-        p_staff_id: staffId,
-        p_delta: -numericAmount,
-        p_reason: 'cash_payment'
-      });
-      if (error) throw error;
-      setData(prev => ({
-        ...prev,
-        staff: prev.staff.map(s => s.id === staffId ? { ...s, balance: Number(newBalance) } : s)
-      }));
-      toast.success('Cash payment recorded');
-      return true;
-    } catch (err) {
-      toast.error('Failed to record payment');
-      console.error(err);
-      return false;
-    }
-  }, [data.staff]);
-
-
 
   const getStats = useCallback(() => {
     const occupied = currentRooms.filter(r => r.status === 'occupied').length;
@@ -979,14 +872,13 @@ export function AppProvider({ children }) {
   }, [currentRooms, currentPayments, currentTenants]);
 
   const value = {
-    data, loading, currentHostel, currentRooms, currentTenants, currentPayments, currentStaff,
+    data, loading, currentHostel, currentRooms, currentTenants, currentPayments,
     hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
     addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
-    addStaff, updateStaff, deleteStaff, addStaffSalary, payStaffCash,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
