@@ -1,7 +1,7 @@
 -- Rollback for migrations/11_remove_staff.sql
 --
 -- Recreates an EMPTY staff table and its functions, access rules and trigger,
--- exactly as migrations 00, 02, 07, 08, 09 and owner-auth-rls.sql describe
+-- exactly as migrations 00, 02, 07, 08, 09 and the former owner-auth-rls.sql describe
 -- them. Safe to run more than once.
 --
 -- Not restored: staff data (the owner confirmed it is not needed) and the
@@ -44,7 +44,7 @@ $$;
 -- Index (migration 02)
 create index if not exists idx_staff_hostel_id on public.staff (hostel_id);
 
--- Access rules (owner-auth-rls.sql)
+-- Access rules (from the former owner-auth-rls.sql)
 alter table public.staff enable row level security;
 drop policy if exists "Owners can read own staff" on public.staff;
 drop policy if exists "Owners can insert own staff" on public.staff;

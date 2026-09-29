@@ -53,12 +53,12 @@ Codex, Antigravity, …) and to every human working on this repository.
   their due date as overdue and, on the 1st of the month only, creates that
   month's bill for every active tenant (due on the 10th).
 
-## 3. Current state (updated 2026-09-21)
+## 3. Current state (updated 2026-09-22)
 
 - **Not in real use yet.** As of 2026-09-19 the live database held the demo
   dataset (all seeded tenants unchanged, demo listing "Sri Sai Boys Hostel")
-  plus a few entries added through the app. Proposed: go live from a clean
-  database.
+  plus a few entries added through the app (see "Test vs real database"
+  below).
 - **Staff section removed** (owner's decision, 2026-09-20).
   Phase 1 (2026-09-20): removed from the code. `/owner/staff` redirects to the
   dashboard, and older "staff" entries in the activity log still display.
@@ -72,10 +72,16 @@ Codex, Antigravity, …) and to every human working on this repository.
 - **Migration history:** Supabase's migration history starts at
   `11_remove_staff` (applied 2026-09-21). Migrations 00-10 were run by hand in
   the SQL Editor before that and are not listed there.
-- **Access rules are not all in migrations.** The row-level security policies
-  for `hostels`, `tenants`, `payments` and `owner_profiles` live in
-  `supabase/owner-auth-rls.sql`. A database built from `migrations/` alone
-  denies everything until that file is also run.
+- **The database can be rebuilt from migrations alone.** Since migration 12
+  (2026-09-22) every access rule is in `supabase/migrations/`; the separate
+  file `owner-auth-rls.sql` was removed. A database built from migrations
+  00-12 matches the live one, except two known leftovers (backlog: column
+  defaults and live updates on `owner_profiles`). Migration 12 was not run on
+  the live database, which already had exactly these rules.
+- **Test vs real database (owner's decision, 2026-09-22):** the current
+  Supabase project is for testing only; no real person's details go into it.
+  When the first real client starts, a new, clean Supabase project is built
+  from the migrations for real use.
 - **API keys:** Supabase is deprecating the legacy anon/service_role keys by
   the end of 2026. The site still uses the legacy anon key; key rotation is
   pending.

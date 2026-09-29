@@ -9,8 +9,17 @@ Before changing anything, read `CLAUDE.md` and `docs/CHANGE_PROCESS.md`.
 
 1. Copy `.env.example` to `.env.local` and add the public Supabase URL and anon key.
 2. Run `npm install`.
-3. Run the SQL migrations in `supabase/migrations` in filename order.
-4. Create an owner in Supabase Auth and map it in `public.owner_profiles`.
+3. Run the SQL migrations in `supabase/migrations` in filename order
+   (00 to the last number). Nothing else is needed: the access rules are part
+   of the migrations.
+4. Create the owner in Supabase Auth (Authentication > Users), then link that
+   user to their hostel in the SQL Editor:
+
+   ```sql
+   insert into public.owner_profiles (user_id, hostel_id)
+   values ('<owner-user-uuid>', '<hostel-id>')
+   on conflict (user_id) do update set hostel_id = excluded.hostel_id;
+   ```
 5. Run `npm run dev`.
 
 For local admin scripts, copy `.admin.env.example` to `.admin.env` and add a
