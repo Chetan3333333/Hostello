@@ -774,7 +774,15 @@ export function AppProvider({ children }) {
 
   const revertPayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);
-    
+
+    if (payment) {
+      const tenant = data.tenants.find(t => t.id === payment.tenantId);
+      if (tenant && !tenant.isActive) {
+        toast.error(`Cannot undo: ${payment.tenantName} has already checked out`);
+        return false;
+      }
+    }
+
     let correctStatus = 'pending';
     if (payment) {
       const localToday = toLocalDateString();
@@ -798,32 +806,33 @@ export function AppProvider({ children }) {
       toast.success(`Payment reverted to ${correctStatus}`);
       return true;
     } catch (err) {
-      toast.error('Failed to revert payment');
+      toast.error(err?.message || 'Failed to revert payment');
       console.error(err);
       return false;
     }
-  }, [data.payments, logActivity]);
+  }, [data.payments, data.tenants, logActivity]);
 
-  const deletePayment = useCallback(async (paymentId) => {
+  const cancelPayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);
+    if (payment && payment.status === 'paid') {
+      toast.error('Undo the payment before cancelling this bill');
+      return false;
+    }
     try {
-      const { error } = await supabase.from('payments').delete().eq('id', paymentId);
+      const { error } = await supabase.from('payments').update({ status: 'cancelled' }).eq('id', paymentId);
       if (error) throw error;
       setData(prev => ({
         ...prev,
-        payments: prev.payments.filter(p => p.id !== paymentId)
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, status: 'cancelled' } : p)
       }));
-      if (payment) {
-        logActivity('payment', `WARNING: Payment record of ₹${Number(payment.amount).toLocaleString()} for ${payment.tenantName} was permanently DELETED.`);
-      }
-      toast.success('Payment record deleted permanently');
+      toast.success('Bill cancelled. It stays in the list and no longer counts in your totals.');
       return true;
     } catch (err) {
-      toast.error('Failed to delete payment');
+      toast.error(err?.message || 'Failed to cancel bill');
       console.error(err);
       return false;
     }
-  }, [data.payments, logActivity]);
+  }, [data.payments]);
 
   const updateHostel = useCallback(async (hostelId, updates) => {
     try {
@@ -876,7 +885,7 @@ export function AppProvider({ children }) {
     hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
-    addPayment, updatePayment, recordPayment, revertPayment, deletePayment,
+    addPayment, updatePayment, recordPayment, revertPayment, cancelPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
   };

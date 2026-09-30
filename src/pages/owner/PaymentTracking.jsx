@@ -7,7 +7,7 @@ import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } f
 import { getCurrentMonth, toLocalDateString } from '../../lib/date';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, deletePayment, updatePayment } = useApp();
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, cancelPayment, updatePayment } = useApp();
   const currentMonthStr = getCurrentMonth();
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -50,17 +50,29 @@ export default function PaymentTracking() {
   };
 
   const handleRevertPayment = (payment) => {
-    revertPayment(payment.id);
+    const wasWrittenOff = payment.status === 'written_off';
+    setConfirmDialog({
+      title: wasWrittenOff ? 'Restore Written-off Bill' : 'Undo Payment',
+      message: wasWrittenOff
+        ? `Restore the written-off bill of ₹${payment.amount.toLocaleString()} for ${payment.tenantName} (${payment.month})? It will be unpaid again and count in your dues.`
+        : `Undo the ₹${payment.amount.toLocaleString()} payment from ${payment.tenantName} for ${payment.month}? The bill will be marked unpaid again.`,
+      type: 'warning',
+      confirmText: wasWrittenOff ? 'Restore Bill' : 'Undo Payment',
+      onConfirm: async () => {
+        const success = await revertPayment(payment.id);
+        if (success) setConfirmDialog(null);
+      }
+    });
   };
 
-  const handleDeletePayment = (payment) => {
+  const handleCancelPayment = (payment) => {
     setConfirmDialog({
-      title: 'Delete Payment',
-      message: `WARNING: Are you sure you want to permanently delete this payment record for ${payment.tenantName}? This action cannot be undone.`,
+      title: 'Cancel Bill',
+      message: `Cancel this bill of ₹${payment.amount.toLocaleString()} for ${payment.tenantName} (${payment.month})? It stays in the list marked "Cancelled" and stops counting in your totals. Use this only for bills that should never have existed.`,
       type: 'danger',
-      confirmText: 'Delete Permanently',
+      confirmText: 'Cancel Bill',
       onConfirm: async () => {
-        const success = await deletePayment(payment.id);
+        const success = await cancelPayment(payment.id);
         if (success) setConfirmDialog(null);
       }
     });
@@ -114,14 +126,17 @@ export default function PaymentTracking() {
     {
       header: 'Status', accessor: 'status',
       render: row => (
-        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : row.status === 'written_off' ? 'ghost' : 'warning'}`}>
-          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : row.status === 'written_off' ? 'Archived' : '⏳ Pending'}
+        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : (row.status === 'written_off' || row.status === 'cancelled') ? 'ghost' : 'warning'}`}>
+          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : row.status === 'written_off' ? 'Archived' : row.status === 'cancelled' ? 'Cancelled' : '⏳ Pending'}
         </span>
       )
     },
     {
       header: 'Action', sortable: false,
       render: row => {
+        if (row.status === 'cancelled') {
+          return <span style={{ color: 'var(--text-muted)' }}>Cancelled</span>;
+        }
         if (row.status === 'paid' || row.status === 'written_off') {
           return (
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -141,8 +156,8 @@ export default function PaymentTracking() {
                 Write-off
               </button>
             )}
-            <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDeletePayment(row); }} title="Delete payment">
-              Delete
+            <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleCancelPayment(row); }} title="Cancel this bill (it stays in the list, marked cancelled)">
+              Cancel Bill
             </button>
             <a 
               href={`https://wa.me/91${currentTenants.find(t => t.id === row.tenantId)?.phone || ''}?text=${encodeURIComponent(`Hi ${row.tenantName}, your hostel rent of ₹${row.amount} for the month of ${row.month} is due. Please pay via UPI at the earliest.`)}`}
@@ -183,7 +198,7 @@ export default function PaymentTracking() {
           {months.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <div className="room-filters" style={{ marginBottom: 0 }}>
-          {['all', 'paid', 'pending', 'overdue', 'written_off'].map(s => (
+          {['all', 'paid', 'pending', 'overdue', 'written_off', 'cancelled'].map(s => (
             <button key={s} className={`filter-chip ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>
               {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
