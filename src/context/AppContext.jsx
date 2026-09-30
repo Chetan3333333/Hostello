@@ -324,9 +324,19 @@ export function AppProvider({ children }) {
         let nextPayments = prev.payments;
 
         if (isRenaming) {
-          nextTenants = prev.tenants.map(t => t.roomId === roomId ? { ...t, roomNumber: updates.number } : t);
-          nextPayments = prev.payments.map(p => 
-            p.roomNumber === room.number
+          // Match what the database does: only tenants living here now, and only
+          // this month's unpaid bills. Older and paid bills keep their history.
+          const currentMonth = getCurrentMonth();
+          const tenantsInRoom = new Set(
+            prev.tenants.filter(t => t.roomId === roomId && t.isActive).map(t => t.id)
+          );
+          nextTenants = prev.tenants.map(t =>
+            t.roomId === roomId && t.isActive ? { ...t, roomNumber: updates.number } : t
+          );
+          nextPayments = prev.payments.map(p =>
+            tenantsInRoom.has(p.tenantId)
+              && p.month === currentMonth
+              && (p.status === 'pending' || p.status === 'overdue')
               ? { ...p, roomNumber: updates.number }
               : p
           );
