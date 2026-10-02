@@ -53,60 +53,88 @@ Codex, Antigravity, …) and to every human working on this repository.
   their due date as overdue and, on the 1st of the month only, creates that
   month's bill for every active tenant (due on the 10th).
 
-## 3. Current state (updated 2026-09-22)
+## 3. Current state (updated 2026-10-02)
 
 - **Not in real use yet.** As of 2026-09-19 the live database held the demo
   dataset (all seeded tenants unchanged, demo listing "Sri Sai Boys Hostel")
   plus a few entries added through the app (see "Test vs real database"
   below).
-- **Staff section removed** (owner's decision, 2026-09-20).
-  Phase 1 (2026-09-20): removed from the code. `/owner/staff` redirects to the
-  dashboard, and older "staff" entries in the activity log still display.
-  Phase 2 (2026-09-21): migration 11 removed the staff tables and functions
-  from the live database. The owner confirmed the staff data was not needed,
-  so none was kept. Do not add staff features back.
-- **Earlier database drift resolved:** the undocumented staff redesign that
-  existed only in the live database (`staff_payments`,
-  `generate_staff_salaries`, `log_staff_payment_activity`) was removed by
-  migration 11.
-- **Migration history:** Supabase's migration history starts at
-  `11_remove_staff` (applied 2026-09-21). Migrations 00-10 were run by hand in
-  the SQL Editor before that and are not listed there.
-- **The database can be rebuilt from migrations alone.** Since migration 12
-  (2026-09-22) every access rule is in `supabase/migrations/`; the separate
-  file `owner-auth-rls.sql` was removed. A database built from migrations
-  00-12 matches the live one, except two known leftovers (backlog: column
-  defaults and live updates on `owner_profiles`). Migration 12 was not run on
-  the live database, which already had exactly these rules.
-- **Test vs real database (owner's decision, 2026-09-22):** the current
-  Supabase project is for testing only; no real person's details go into it.
-  When the first real client starts, a new, clean Supabase project is built
-  from the migrations for real use.
-- **API keys:** Supabase is deprecating the legacy anon/service_role keys by
-  the end of 2026. The site still uses the legacy anon key; key rotation is
-  pending.
+- **Staff section removed** (owner's decision, 2026-09-20). Code removed in
+  Phase 1; migration 11 removed the tables and functions. Do not add it back.
+- **A real client has accepted the app** (2026-09-30). The plan: keep the
+  current Supabase project as the practice one and build a clean database for
+  real hostels. Nothing real has been entered yet; the live database still holds
+  the demo dataset.
+- **Goal: many hostels.** Build everything so more hostels and owners can be
+  added later, but get one hostel working perfectly first.
+- **Rent rules (owner's decision):** calendar month, full month, due on the
+  10th, no proration. Do not change without asking.
+- **Supabase plan:** Free for the first 2-3 hostels, then Pro. Free pauses after
+  a week of no use and has no automatic backups.
+- **Migration history** in Supabase starts at 11; migrations 00-10 were run by
+  hand in the SQL Editor before that. Everything from 11 onward is recorded.
+- **Access rules** now live in migration 12, so a database can be rebuilt from
+  this repository alone.
+- **API keys:** Supabase is deprecating the legacy anon/service_role keys by the
+  end of 2026, and the current keys have been exposed in chat. They belong to
+  the practice database only; the real client gets a fresh project with fresh
+  keys. Rotation is still pending.
 
-## 4. Known issues backlog (2026-09 review, not fixed yet)
+### Fixed since 2026-09-20 (do not re-introduce)
+- Migration 12: owner access rules moved into the numbered migrations.
+- Migrations 13, 14 and the Payments screen: Undo asks for confirmation; a bill
+  cannot be reopened for a tenant who has checked out; Delete was replaced by
+  Cancel, which keeps the bill visible; reversals and cancellations are written
+  to the activity history; a cancelled bill can be replaced by a corrected one.
+- Migration 15: renaming a room only updates the current month's unpaid bills of
+  tenants living there now. History is never rewritten.
+- Migration 16: the nightly job creates any missing rent bill for the current
+  month on any night, not only the 1st, and warns in the history when it runs
+  late. Rent rules unchanged.
+- Migration 17 and the Payments screen: extra charges (electricity, fines) can
+  be added for the same month through the existing Record Payment box, with the
+  reason in the Note. Each bill carries a kind, rent or extra; rent stays one per
+  month and the nightly job counts rent only.
+- Migration 18: the database counts room occupancy itself; a wrong value is
+  corrected as it is written. scripts/fixRoomStatuses.js was deleted.
+- Migration 19: the database refuses to move a checked-out tenant, to change the
+  amount of a settled bill, to move a bill to another tenant or month, or to
+  create a bill for a tenant who has left. Collecting arrears after checkout
+  still works.
+- Surprise logouts: the app no longer reloads everything on every quiet login
+  renewal, and a failed load shows Retry instead of signing the owner out.
 
-- Payments and tenants are each loaded with a single request. Supabase's API
-  returns at most 1,000 rows per request, so larger tables get silently cut off.
-- The billing job only creates bills when it runs on the 1st. One failed run
-  (this happened on 2026-06-01) skips that month's bills.
-- A new tenant's first bill is always for the current month and due on the
-  10th, so check-ins after the 10th are overdue immediately.
-- Checkout is blocked while any bill is unpaid, yet the settlement screen
-  suggests deducting arrears from the deposit. Deposit adjustments and refunds
-  cannot be recorded.
-- A bill and its payment are the same row; partial payments split rows. There
-  is no separate receipt, and cash vs UPI is not recorded.
-- Room occupancy is a stored counter maintained by hand in several functions.
-- The login listener reloads all data on every auth event and signs the owner
-  out if any load fails.
-- Dashboard "Collected (This Month)" counts paid bills by billing month, not
-  money received during the month.
-- The hostel profile screen can change `rating` and can overwrite
-  `total_rooms` with a stale value.
-- There are no automated tests.
+## 4. Known issues backlog (not fixed yet)
+
+Before the first real client:
+- A clean database for real hostels, with the owner's own login and real email
+  (the current login is the placeholder owner@hostello.com).
+- Cash / UPI / Bank is not asked for when marking a bill paid, although the
+  database column exists.
+- No backup routine; the Free plan has none.
+- Refreshing a page may show 404 on the host; needs testing and possibly a
+  rewrite rule.
+- The hostel profile screen can overwrite the room count with a stale value, the
+  hostel name can be saved blank, and the owner can edit the public rating.
+- The public page still advertises the demo hostel.
+- Public sign-ups are probably still allowed in Supabase; only owners need
+  accounts.
+
+Soon after launch:
+- Bills and receipts are still the same record: a part payment rewrites the bill
+  amount and splits it, deposits are only a number on the tenant form, and
+  advance payments are refused.
+- "Collected (This Month)" counts bills by billing month, not money received.
+- No "Forgot password" page.
+- Payments and tenants are each loaded in one request; Supabase returns at most
+  1,000 rows, silently.
+- Other devices do not refresh automatically; only the activity feed is live.
+- Dates come from the device clock rather than India time.
+- No automatic tests and no nightly health check.
+- Small screen issues: floors and room numbers sort as text, the chart shows
+  "0k" for small amounts, pop-ups close on an outside tap and ignore Escape,
+  ground-floor rooms (floor 0) cannot be added, the bell icon is decorative,
+  and the WhatsApp reminder has no UPI id.
 
 ## 5. Commands
 
