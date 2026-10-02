@@ -14,7 +14,7 @@ const navItems = [
 ];
 
 export default function OwnerLayout() {
-  const { currentHostel, ownerLogout } = useApp();
+  const { currentHostel, ownerLogout, loadError, retryLoad } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
@@ -98,6 +98,16 @@ export default function OwnerLayout() {
           </div>
         </header>
         <div className="owner-content">
+          {loadError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: 12, padding: '12px 16px', marginBottom: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap'
+            }}>
+              <span>Could not load your latest data. You are still signed in.</span>
+              <button className="btn btn-sm" onClick={retryLoad}>Retry</button>
+            </div>
+          )}
           <Outlet />
         </div>
       </main>

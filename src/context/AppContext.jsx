@@ -50,6 +50,7 @@ const sortActivityLogs = (logs) => [...logs].sort((a, b) => {
 export function AppProvider({ children }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [session, setSession] = useState(null);
   const [ownerProfile, setOwnerProfile] = useState(null);
   const [hasMoreActivityLogs, setHasMoreActivityLogs] = useState(false);
@@ -158,7 +159,12 @@ export function AppProvider({ children }) {
         }
       } catch (error) {
         console.error('Error loading Hostello data:', error);
-        toast.error('Failed to load data from database');
+        if (error?.code === 'PGRST116') {
+          toast.error('This account is not linked to a hostel yet. Please contact support.');
+        } else {
+          toast.error('Could not load your data. Check your internet and press Retry.');
+        }
+        if (isActive) setLoadError(true);
       } finally {
         if (isActive) setLoading(false);
       }
@@ -166,21 +172,31 @@ export function AppProvider({ children }) {
 
     loadInitialData();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
 
-      if (!nextSession) {
+      if (event === 'SIGNED_OUT' || !nextSession) {
         clearOwnerData();
         return;
       }
+
+      // The login quietly renews itself about once an hour (TOKEN_REFRESHED) and
+      // fires again when the app regains focus. Re-downloading everything then is
+      // pointless, and a failed download used to log the owner out.
+      if (event !== 'SIGNED_IN') return;
+
       const loadOwner = async () => {
         try {
           await fetchOwnerData(nextSession.user.id);
         } catch (error) {
           console.error('Error loading owner data:', error);
-          toast.error('Owner account is not linked to a hostel yet');
-          await supabase.auth.signOut();
-          clearOwnerData();
+          if (error?.code === 'PGRST116') {
+            // No owner_profiles row: this account really is not linked to a hostel.
+            toast.error('This account is not linked to a hostel yet. Please contact support.');
+          } else {
+            toast.error('Could not load your data. Check your internet and press Retry.');
+          }
+          setLoadError(true);
         }
       };
 
@@ -192,6 +208,24 @@ export function AppProvider({ children }) {
       listener.subscription.unsubscribe();
     };
   }, [clearOwnerData, fetchOwnerData, fetchPublicData]);
+
+  const retryLoad = useCallback(async () => {
+    setLoadError(false);
+    setLoading(true);
+    try {
+      await fetchPublicData();
+      const { data: authData } = await supabase.auth.getSession();
+      if (authData.session) {
+        await fetchOwnerData(authData.session.user.id);
+      }
+    } catch (error) {
+      console.error('Retry failed:', error);
+      setLoadError(true);
+      toast.error('Still could not load your data. Please try again in a moment.');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchOwnerData, fetchPublicData]);
 
   const isOwnerLoggedIn = !!session && !!ownerProfile;
   const ownerHostelId = ownerProfile?.hostelId || null;
@@ -895,6 +929,7 @@ export function AppProvider({ children }) {
     hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
+    loadError, retryLoad, hasSession: !!session,
     addPayment, updatePayment, recordPayment, revertPayment, cancelPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,

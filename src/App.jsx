@@ -22,10 +22,20 @@ const RouteLoading = () => (
 );
 
 function ProtectedOwnerRoute({ children }) {
-  const { isOwnerLoggedIn, loading } = useApp();
-  
+  const { isOwnerLoggedIn, loading, hasSession, loadError, retryLoad } = useApp();
+
   if (loading) {
     return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
+  }
+  // Still signed in, but the data could not be fetched (usually a network hiccup).
+  // Offer Retry instead of sending the owner back to the login page.
+  if (!isOwnerLoggedIn && hasSession && loadError) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', padding: 24, textAlign: 'center' }}>
+        <div>Could not load your hostel data. You are still signed in.</div>
+        <button className="btn btn-primary" onClick={retryLoad}>Retry</button>
+      </div>
+    );
   }
   if (!isOwnerLoggedIn) {
     return <Navigate to="/owner/login" replace />;
