@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
 import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock, Settings, Search } from 'lucide-react';
@@ -33,18 +33,78 @@ function CustomTooltip({ active, payload }) {
   return null;
 }
 
+const ACTIVITY_PAGE_SIZE = 100;
+
 export default function Dashboard() {
-  const { getStats, currentPayments, data, hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs } = useApp();
+  const { getStats, currentPayments, data, hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs, searchActivityLogs } = useApp();
   const [searchTerm, setSearchTerm] = useState('');
   const [warningsOnly, setWarningsOnly] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searchHasMore, setSearchHasMore] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   const stats = getStats();
   const activityLogs = data.activityLogs || [];
 
-  const filteredLogs = activityLogs.filter(act => {
-    if (warningsOnly && !act.message.includes('WARNING')) return false;
-    if (searchTerm && !act.message.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  // When the owner searches or asks for warnings only, the database is asked
+  // across the whole history instead of filtering the lines already downloaded.
+  const isSearchMode = Boolean(searchTerm.trim()) || warningsOnly;
+
+  useEffect(() => {
+    let active = true;
+    const timer = setTimeout(async () => {
+      if (!isSearchMode) {
+        if (active) {
+          setSearchResults([]);
+          setSearchHasMore(false);
+          setSearchFailed(false);
+          setSearching(false);
+        }
+        return;
+      }
+      if (active) {
+        setSearching(true);
+        setSearchFailed(false);
+      }
+      try {
+        const rows = await searchActivityLogs({ search: searchTerm, warningsOnly });
+        if (!active) return;
+        setSearchResults(rows);
+        setSearchHasMore(rows.length === ACTIVITY_PAGE_SIZE);
+      } catch (err) {
+        console.error('Activity search failed:', err);
+        if (active) {
+          setSearchResults([]);
+          setSearchFailed(true);
+        }
+      } finally {
+        if (active) setSearching(false);
+      }
+    }, 300);
+    return () => { active = false; clearTimeout(timer); };
+  }, [searchTerm, warningsOnly, isSearchMode, searchActivityLogs]);
+
+  const loadMoreSearchResults = async () => {
+    const last = searchResults[searchResults.length - 1];
+    if (!last) return;
+    setSearching(true);
+    try {
+      const rows = await searchActivityLogs({
+        search: searchTerm,
+        warningsOnly,
+        before: { createdAt: last.createdAt, id: last.id }
+      });
+      setSearchResults(prev => [...prev, ...rows]);
+      setSearchHasMore(rows.length === ACTIVITY_PAGE_SIZE);
+    } catch (err) {
+      console.error('Loading more search results failed:', err);
+      setSearchFailed(true);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const filteredLogs = isSearchMode ? searchResults : activityLogs;
 
   // Occupancy pie data
   const occupancyData = [
@@ -185,8 +245,19 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="activity-feed" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '8px', marginTop: '16px' }}>
+            {isSearchMode && (
+              <p style={{ color: 'var(--dark-text-muted)', fontSize: '0.75rem', padding: '4px 0 8px' }}>
+                {searching
+                  ? 'Searching the full history...'
+                  : searchFailed
+                    ? 'Could not search right now. Please try again.'
+                    : `Searching the full history · ${filteredLogs.length}${searchHasMore ? '+' : ''} match${filteredLogs.length === 1 ? '' : 'es'}`}
+              </p>
+            )}
             {filteredLogs.length === 0 ? (
-              <p style={{ color: 'var(--dark-text-muted)', textAlign: 'center', padding: '20px' }}>No matching activity logs</p>
+              <p style={{ color: 'var(--dark-text-muted)', textAlign: 'center', padding: '20px' }}>
+                {searching ? 'Searching...' : 'No matching activity logs'}
+              </p>
             ) : (
               filteredLogs.map((act, i) => {
                 let Icon = Settings;
@@ -241,7 +312,19 @@ export default function Dashboard() {
                 );
               })
             )}
-            {hasMoreActivityLogs && !searchTerm && !warningsOnly && (
+            {isSearchMode && searchHasMore && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={loadMoreSearchResults}
+                disabled={searching}
+                style={{ width: '100%', justifyContent: 'center', marginTop: '12px' }}
+              >
+                <Clock size={14} />
+                {searching ? 'Loading...' : 'Load more matches'}
+              </button>
+            )}
+            {hasMoreActivityLogs && !isSearchMode && (
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"

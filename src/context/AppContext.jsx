@@ -209,6 +209,20 @@ export function AppProvider({ children }) {
     };
   }, [clearOwnerData, fetchOwnerData, fetchPublicData]);
 
+  // Searching looks at the hostel's whole history in the database, not only the
+  // lines already downloaded. Security rules still apply inside the function.
+  const searchActivityLogs = useCallback(async ({ search, warningsOnly, before } = {}) => {
+    const { data: rows, error } = await supabase.rpc('search_activity_logs', {
+      p_search: search?.trim() || null,
+      p_warnings_only: !!warningsOnly,
+      p_before_created_at: before?.createdAt || null,
+      p_before_id: before?.id || null,
+      p_limit: ACTIVITY_PAGE_SIZE
+    });
+    if (error) throw error;
+    return mapKeys(rows || []);
+  }, []);
+
   const retryLoad = useCallback(async () => {
     setLoadError(false);
     setLoading(true);
@@ -929,7 +943,7 @@ export function AppProvider({ children }) {
     hasMoreActivityLogs, loadingMoreActivityLogs, loadMoreActivityLogs,
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
-    loadError, retryLoad, hasSession: !!session,
+    loadError, retryLoad, hasSession: !!session, searchActivityLogs,
     addPayment, updatePayment, recordPayment, revertPayment, cancelPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
