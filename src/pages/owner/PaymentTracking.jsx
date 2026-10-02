@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import { useState, useMemo } from 'react';
 import { useApp } from '../../hooks/useApp';
 import DataTable from '../../components/DataTable';
@@ -95,21 +96,29 @@ export default function PaymentTracking() {
     e.preventDefault();
     const tenant = currentTenants.find(t => t.id === form.tenantId);
     if (!tenant) return;
-    const duplicate = currentPayments.find(p => p.tenantId === tenant.id && p.month === form.month);
-    if (duplicate) {
-      alert(`A payment record for ${tenant.name} for ${form.month} already exists!`);
+    // A tenant can have one rent bill per month plus any number of extra
+    // charges (electricity, fines...). The reason goes in the Note.
+    const hasBillThisMonth = currentPayments.some(
+      p => p.tenantId === tenant.id && p.month === form.month && p.status !== 'cancelled' && !p.isRemainder
+    );
+    if (hasBillThisMonth && !form.receiptNote.trim()) {
+      toast.error(`${tenant.name} already has a bill for ${form.month}. Write what this extra amount is for in the Note.`);
       return;
     }
+    // An extra charge added during the current month is due the day it is added,
+    // so it is not shown as overdue straight away.
+    const today = toLocalDateString();
+    const dueDate = today.startsWith(form.month) ? today : `${form.month}-10`;
     const success = await addPayment({
       tenantId: tenant.id,
       tenantName: tenant.name,
       roomNumber: tenant.roomNumber,
       amount: Number(form.amount) || tenant.rentAmount,
       month: form.month,
-      dueDate: `${form.month}-10`,
+      dueDate,
       paidDate: form.status === 'paid' ? toLocalDateString() : null,
       status: form.status,
-      receiptNote: form.receiptNote || `Rent for ${form.month}`,
+      receiptNote: form.receiptNote.trim() || `Rent for ${form.month}`,
     });
     if (!success) return;
     setForm({ tenantId: '', amount: '', month: currentMonthStr, receiptNote: '', status: 'pending' });
@@ -119,7 +128,19 @@ export default function PaymentTracking() {
   const columns = [
     { header: 'Tenant', accessor: 'tenantName', render: row => <span style={{ fontWeight: 600, color: 'var(--dark-text)' }}>{row.tenantName}</span> },
     { header: 'Room', accessor: 'roomNumber', render: row => <span className="badge badge-primary">Room {row.roomNumber}</span> },
-    { header: 'Amount', accessor: 'amount', render: row => <span style={{ fontWeight: 600 }}>₹{row.amount.toLocaleString()}</span> },
+    {
+      header: 'Amount', accessor: 'amount',
+      render: row => (
+        <span style={{ fontWeight: 600 }}>
+          ₹{row.amount.toLocaleString()}
+          {row.kind === 'extra' && (
+            <span style={{ display: 'block', fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Extra{row.receiptNote ? `: ${row.receiptNote}` : ''}
+            </span>
+          )}
+        </span>
+      )
+    },
     { header: 'Month', accessor: 'month' },
     { header: 'Due Date', accessor: 'dueDate' },
     { header: 'Paid Date', accessor: 'paidDate', render: row => row.paidDate || '—' },
