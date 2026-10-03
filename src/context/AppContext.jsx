@@ -1,10 +1,25 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { getCurrentMonth, getDueDateForMonth, toLocalDateString } from '../lib/date';
 import { AppContext } from './app-context';
 
 const ACTIVITY_PAGE_SIZE = 100;
+// A phone that switches between wifi and mobile data, or locks its screen mid
+// request, can lose the reply to a request the server already answered. Without
+// a time limit the app waits for it for ever and stays on the loading screen.
+const LOAD_TIMEOUT_MS = 15000;
+
+const withTimeout = (promise, ms = LOAD_TIMEOUT_MS) => {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error('Request timed out. Please check your internet connection.')),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
 const PUBLIC_ROOM_COLUMNS = 'id,hostel_id,number,floor,type,price,status,capacity,current_occupants,amenities,has_attached_bath,has_ac,is_archived';
 
 const emptyData = {
@@ -51,6 +66,7 @@ export function AppProvider({ children }) {
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const ownerProfileRef = useRef(null);
   const [session, setSession] = useState(null);
   const [ownerProfile, setOwnerProfile] = useState(null);
   const [hasMoreActivityLogs, setHasMoreActivityLogs] = useState(false);
@@ -74,6 +90,7 @@ export function AppProvider({ children }) {
 
   const clearOwnerData = useCallback(() => {
     setOwnerProfile(null);
+    ownerProfileRef.current = null;
     setHasMoreActivityLogs(false);
     setData(prev => ({
       ...prev,
@@ -117,6 +134,7 @@ export function AppProvider({ children }) {
 
     const mappedHostel = mapKeys([hostelData])[0];
     setOwnerProfile({ userId, hostelId });
+    ownerProfileRef.current = { userId, hostelId };
     setHasMoreActivityLogs((activityLogsData || []).length === ACTIVITY_PAGE_SIZE);
     
     setData(prev => ({
@@ -142,10 +160,10 @@ export function AppProvider({ children }) {
 
     const loadInitialData = async () => {
       try {
-        const [{ data: authData }] = await Promise.all([
+        const [{ data: authData }] = await withTimeout(Promise.all([
           supabase.auth.getSession(),
           fetchPublicData()
-        ]);
+        ]));
 
         if (!isActive) return;
 
@@ -153,7 +171,7 @@ export function AppProvider({ children }) {
         setSession(initialSession);
 
         if (initialSession) {
-          await fetchOwnerData(initialSession.user.id);
+          await withTimeout(fetchOwnerData(initialSession.user.id));
         } else {
           clearOwnerData();
         }
@@ -183,11 +201,15 @@ export function AppProvider({ children }) {
       // The login quietly renews itself about once an hour (TOKEN_REFRESHED) and
       // fires again when the app regains focus. Re-downloading everything then is
       // pointless, and a failed download used to log the owner out.
-      if (event !== 'SIGNED_IN') return;
+      // INITIAL_SESSION is handled too, but only when the startup load did not
+      // get the hostel (for example because it timed out). Without this the
+      // owner would be left tapping Retry.
+      const sessionArrivedLate = event === 'INITIAL_SESSION' && !ownerProfileRef.current;
+      if (event !== 'SIGNED_IN' && !sessionArrivedLate) return;
 
       const loadOwner = async () => {
         try {
-          await fetchOwnerData(nextSession.user.id);
+          await withTimeout(fetchOwnerData(nextSession.user.id));
         } catch (error) {
           console.error('Error loading owner data:', error);
           if (error?.code === 'PGRST116') {
@@ -227,10 +249,10 @@ export function AppProvider({ children }) {
     setLoadError(false);
     setLoading(true);
     try {
-      await fetchPublicData();
-      const { data: authData } = await supabase.auth.getSession();
+      await withTimeout(fetchPublicData());
+      const { data: authData } = await withTimeout(supabase.auth.getSession());
       if (authData.session) {
-        await fetchOwnerData(authData.session.user.id);
+        await withTimeout(fetchOwnerData(authData.session.user.id));
       }
     } catch (error) {
       console.error('Retry failed:', error);
