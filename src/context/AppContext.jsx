@@ -5,18 +5,7 @@ import { getCurrentMonth, getDueDateForMonth, toLocalDateString } from '../lib/d
 import { AppContext } from './app-context';
 
 const ACTIVITY_PAGE_SIZE = 100;
-const LOAD_TIMEOUT_MS = 15000;
 const PUBLIC_ROOM_COLUMNS = 'id,hostel_id,number,floor,type,price,status,capacity,current_occupants,amenities,has_attached_bath,has_ac,is_archived';
-
-// If a request takes longer than LOAD_TIMEOUT_MS, reject it so the user sees
-// the Retry button instead of staring at "Loading Hostello Data..." forever.
-const withTimeout = (promise, ms = LOAD_TIMEOUT_MS) => {
-  let timer;
-  const timeout = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error('Request timed out. Please check your internet connection.')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
-};
 
 const emptyData = {
   hostels: [],
@@ -153,10 +142,10 @@ export function AppProvider({ children }) {
 
     const loadInitialData = async () => {
       try {
-        const [{ data: authData }] = await withTimeout(Promise.all([
+        const [{ data: authData }] = await Promise.all([
           supabase.auth.getSession(),
           fetchPublicData()
-        ]));
+        ]);
 
         if (!isActive) return;
 
@@ -164,7 +153,7 @@ export function AppProvider({ children }) {
         setSession(initialSession);
 
         if (initialSession) {
-          await withTimeout(fetchOwnerData(initialSession.user.id));
+          await fetchOwnerData(initialSession.user.id);
         } else {
           clearOwnerData();
         }
@@ -198,7 +187,7 @@ export function AppProvider({ children }) {
 
       const loadOwner = async () => {
         try {
-          await withTimeout(fetchOwnerData(nextSession.user.id));
+          await fetchOwnerData(nextSession.user.id);
         } catch (error) {
           console.error('Error loading owner data:', error);
           if (error?.code === 'PGRST116') {
@@ -238,10 +227,10 @@ export function AppProvider({ children }) {
     setLoadError(false);
     setLoading(true);
     try {
-      await withTimeout(fetchPublicData());
-      const { data: authData } = await withTimeout(supabase.auth.getSession());
+      await fetchPublicData();
+      const { data: authData } = await supabase.auth.getSession();
       if (authData.session) {
-        await withTimeout(fetchOwnerData(authData.session.user.id));
+        await fetchOwnerData(authData.session.user.id);
       }
     } catch (error) {
       console.error('Retry failed:', error);
