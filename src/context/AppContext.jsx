@@ -20,6 +20,22 @@ const withTimeout = (promise, ms = LOAD_TIMEOUT_MS) => {
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 };
+// Supabase returns at most 1,000 rows per request.  Tables that grow over
+// time (tenants, payments) will silently lose older records without this.
+const fetchAllRows = async (buildQuery) => {
+  const PAGE = 1000;
+  let all = [];
+  for (let i = 0; i < 50; i++) {                     // safety cap: 50 000 rows
+    const from = i * PAGE;
+    const { data, error } = await buildQuery().range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;                    // last page
+  }
+  return all;
+};
+
 const PUBLIC_ROOM_COLUMNS = 'id,hostel_id,number,floor,type,price,status,capacity,current_occupants,amenities,has_attached_bath,has_ac,is_archived';
 
 const emptyData = {
@@ -113,14 +129,14 @@ export function AppProvider({ children }) {
     const [
       { data: hostelData, error: hostelError },
       { data: roomsData, error: roomsError },
-      { data: tenantsData, error: tenantsError },
-      { data: paymentsData, error: paymentsError },
+      tenantsData,
+      paymentsData,
       { data: activityLogsData, error: activityLogsError }
     ] = await Promise.all([
       supabase.from('hostels').select('*').eq('id', hostelId).single(),
       supabase.from('rooms').select('*').eq('hostel_id', hostelId),
-      supabase.from('tenants').select('*').eq('hostel_id', hostelId),
-      supabase.from('payments').select('*').eq('hostel_id', hostelId),
+      fetchAllRows(() => supabase.from('tenants').select('*').eq('hostel_id', hostelId)),
+      fetchAllRows(() => supabase.from('payments').select('*').eq('hostel_id', hostelId)),
       supabase.from('activity_logs')
         .select('*')
         .eq('hostel_id', hostelId)
@@ -129,7 +145,7 @@ export function AppProvider({ children }) {
         .limit(ACTIVITY_PAGE_SIZE)
     ]);
 
-    const firstError = hostelError || roomsError || tenantsError || paymentsError || activityLogsError;
+    const firstError = hostelError || roomsError || activityLogsError;
     if (firstError) throw firstError;
 
     const mappedHostel = mapKeys([hostelData])[0];

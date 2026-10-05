@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BedDouble, Users, CreditCard, Building2, Menu, X, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, BedDouble, Users, CreditCard, Building2, Menu, X, LogOut } from 'lucide-react';
 import { useApp } from '../../hooks/useApp';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
