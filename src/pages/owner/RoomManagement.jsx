@@ -162,7 +162,7 @@ export default function RoomManagement() {
             </div>
             <div className="form-group">
               <label>Floor</label>
-              <input type="number" className="form-input" value={form.floor} onChange={e => setForm({...form, floor: e.target.value})} required min="1" />
+              <input type="number" className="form-input" value={form.floor} onChange={e => setForm({...form, floor: e.target.value})} required min="0" />
             </div>
           </div>
           <div className="form-row" style={{ marginTop: '16px' }}>

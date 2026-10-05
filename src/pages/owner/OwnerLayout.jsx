@@ -88,10 +88,6 @@ export default function OwnerLayout() {
             <h2>{currentHostel?.name}</h2>
           </div>
           <div className="topbar-actions">
-            <button className="topbar-notification">
-              <Bell size={20} />
-              <span className="notification-dot"></span>
-            </button>
             <div className="topbar-avatar">
               {currentHostel?.name?.charAt(0)}
             </div>
