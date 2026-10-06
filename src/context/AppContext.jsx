@@ -135,8 +135,8 @@ export function AppProvider({ children }) {
     ] = await Promise.all([
       supabase.from('hostels').select('*').eq('id', hostelId).single(),
       supabase.from('rooms').select('*').eq('hostel_id', hostelId),
-      fetchAllRows(() => supabase.from('tenants').select('*').eq('hostel_id', hostelId)),
-      fetchAllRows(() => supabase.from('payments').select('*').eq('hostel_id', hostelId)),
+      fetchAllRows(() => supabase.from('tenants').select('*').eq('hostel_id', hostelId).order('id')),
+      fetchAllRows(() => supabase.from('payments').select('*').eq('hostel_id', hostelId).order('id')),
       supabase.from('activity_logs')
         .select('*')
         .eq('hostel_id', hostelId)

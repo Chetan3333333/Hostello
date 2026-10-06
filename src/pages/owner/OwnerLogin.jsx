@@ -58,6 +58,7 @@ export default function OwnerLogin() {
         email: email.trim(),
         options: {
           emailRedirectTo: window.location.origin + '/owner/dashboard',
+          shouldCreateUser: false,
         },
       });
 
