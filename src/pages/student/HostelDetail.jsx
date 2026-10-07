@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApp } from '../../hooks/useApp';
 import { Building2, MapPin, Star, Phone, MessageCircle, Mail, ArrowLeft, Shield, Check } from 'lucide-react';
@@ -9,12 +10,40 @@ const getMinPrice = (pricing) => {
   return prices.length > 0 ? Math.min(...prices) : null;
 };
 
+// The cheapest price comes from the real rooms the owner manages. The hostel's
+// own pricing field is only a fallback, because no screen can edit it and it can
+// drift away from the actual room prices.
+const getStartingPrice = (rooms, hostel) => {
+  const prices = (rooms || []).map(r => Number(r.price)).filter(Number.isFinite);
+  return prices.length > 0 ? Math.min(...prices) : getMinPrice(hostel?.pricing);
+};
+
+// Students keep this page open while they decide, so it refreshes itself instead
+// of showing yesterday's availability. It only refreshes while the page is
+// actually on screen.
+const PUBLIC_REFRESH_MS = 30000;
+
 export default function HostelDetail() {
   const { id } = useParams();
-  const { data } = useApp();
+  const { data, refreshPublicData } = useApp();
   const hostel = data.hostels.find(h => h.id === id);
   const rooms = data.rooms.filter(r => r.hostelId === id && !r.isArchived);
-  const minPrice = getMinPrice(hostel?.pricing);
+  const minPrice = getStartingPrice(rooms, hostel);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
+      refreshPublicData().catch(() => { /* a visitor should never see a load error */ });
+    };
+    const timer = setInterval(refresh, PUBLIC_REFRESH_MS);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [refreshPublicData]);
 
   if (!hostel) {
     return (

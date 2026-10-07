@@ -10,8 +10,30 @@ const getMinPrice = (pricing) => {
   return prices.length > 0 ? Math.min(...prices) : null;
 };
 
+// Same rule as the hostel page: the cheapest real room wins, and the hostel's
+// own pricing field is only a fallback.
+const buildStartingPrices = (hostels, rooms) => {
+  const byHostel = new Map();
+  (rooms || []).forEach(r => {
+    if (r.isArchived) return;
+    const price = Number(r.price);
+    if (!Number.isFinite(price)) return;
+    const current = byHostel.get(r.hostelId);
+    if (current === undefined || price < current) byHostel.set(r.hostelId, price);
+  });
+  const result = new Map();
+  (hostels || []).forEach(h => {
+    result.set(h.id, byHostel.has(h.id) ? byHostel.get(h.id) : getMinPrice(h.pricing));
+  });
+  return result;
+};
+
 export default function HostelSearch() {
   const { data } = useApp();
+  const startingPrices = useMemo(
+    () => buildStartingPrices(data.hostels, data.rooms),
+    [data.hostels, data.rooms]
+  );
   const [search, setSearch] = useState('');
   const [priceRange, setPriceRange] = useState([0, 15000]);
   const [typeFilter, setTypeFilter] = useState('all');
@@ -30,17 +52,17 @@ export default function HostelSearch() {
     }
     if (typeFilter !== 'all') result = result.filter(h => h.type === typeFilter);
     result = result.filter(h => {
-      const minPrice = getMinPrice(h.pricing);
+      const minPrice = startingPrices.get(h.id) ?? null;
       return minPrice === null || (minPrice >= priceRange[0] && minPrice <= priceRange[1]);
     });
     if (amenityFilter.length > 0) {
       result = result.filter(h => amenityFilter.every(a => (h.amenities || []).includes(a)));
     }
 
-    if (sortBy === 'price-low') result.sort((a, b) => (getMinPrice(a.pricing) ?? Infinity) - (getMinPrice(b.pricing) ?? Infinity));
+    if (sortBy === 'price-low') result.sort((a, b) => (startingPrices.get(a.id) ?? Infinity) - (startingPrices.get(b.id) ?? Infinity));
     else if (sortBy === 'price-high') result.sort((a, b) => {
-      const aPrice = getMinPrice(a.pricing);
-      const bPrice = getMinPrice(b.pricing);
+      const aPrice = startingPrices.get(a.id) ?? null;
+      const bPrice = startingPrices.get(b.id) ?? null;
       if (aPrice === null) return 1;
       if (bPrice === null) return -1;
       return bPrice - aPrice;
@@ -48,7 +70,7 @@ export default function HostelSearch() {
     else if (sortBy === 'rating') result.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 
     return result;
-  }, [data.hostels, search, typeFilter, priceRange, amenityFilter, sortBy]);
+  }, [data.hostels, search, typeFilter, priceRange, amenityFilter, sortBy, startingPrices]);
 
   const toggleAmenity = (a) => {
     setAmenityFilter(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
@@ -153,9 +175,9 @@ export default function HostelSearch() {
                   <div className="hostel-search-bottom">
                     <div>
                       <span className="price-from">Starting from</span>
-                      {getMinPrice(hostel.pricing) === null
+                      {(startingPrices.get(hostel.id) ?? null) === null
                         ? <span className="price-amount">Price on request</span>
-                        : <span className="price-amount">₹{getMinPrice(hostel.pricing).toLocaleString()}<span className="price-period">/month</span></span>}
+                        : <span className="price-amount">₹{startingPrices.get(hostel.id).toLocaleString()}<span className="price-period">/month</span></span>}
                     </div>
                     <span className="view-details-btn">View Details <ArrowRight size={14} /></span>
                   </div>
