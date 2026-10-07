@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, SlidersHorizontal, Star, MapPin, ArrowRight, Building2 } from 'lucide-react';
+import { Search, SlidersHorizontal, MapPin, ArrowRight, Building2 } from 'lucide-react';
 import { useApp } from '../../hooks/useApp';
 import { amenityLabels } from '../../data/mockData';
 import '../../styles/student.css';
@@ -67,7 +67,6 @@ export default function HostelSearch() {
       if (bPrice === null) return -1;
       return bPrice - aPrice;
     });
-    else if (sortBy === 'rating') result.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
 
     return result;
   }, [data.hostels, search, typeFilter, priceRange, amenityFilter, sortBy, startingPrices]);
@@ -140,7 +139,6 @@ export default function HostelSearch() {
           <select className="sort-select" value={sortBy} onChange={e => setSortBy(e.target.value)}>
             <option value="price-low">Price: Low to High</option>
             <option value="price-high">Price: High to Low</option>
-            <option value="rating">Highest Rated</option>
           </select>
         </div>
 
@@ -162,9 +160,6 @@ export default function HostelSearch() {
                 <div className="hostel-search-info">
                   <div className="hostel-search-top">
                     <h3>{hostel.name}</h3>
-                    <div className="hostel-search-rating">
-                      <Star size={14} fill="#FFB547" color="#FFB547" /> {hostel.rating}
-                    </div>
                   </div>
                   <p className="hostel-search-location"><MapPin size={14} /> {hostel.nearbyLandmarks?.[0] || hostel.address?.split(',')[0] || 'Location not provided'}</p>
                   <div className="hostel-search-amenities">
