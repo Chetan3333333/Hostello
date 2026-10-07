@@ -982,6 +982,7 @@ export function AppProvider({ children }) {
     addRoom, updateRoom, deleteRoom,
     addTenant, updateTenant, checkoutTenant, swapTenants,
     loadError, retryLoad, hasSession: !!session, searchActivityLogs,
+    refreshPublicData: fetchPublicData,
     addPayment, updatePayment, recordPayment, revertPayment, cancelPayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
