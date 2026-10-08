@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useApp } from '../../hooks/useApp';
-import { Building2, MapPin, Star, Phone, MessageCircle, Mail, ArrowLeft, Shield, Check } from 'lucide-react';
+import { Building2, MapPin, Phone, MessageCircle, Mail, ArrowLeft, Shield, Check } from 'lucide-react';
 import { amenityLabels, roomTypeLabels } from '../../data/mockData';
 import '../../styles/student.css';
 
@@ -92,7 +92,6 @@ export default function HostelDetail() {
                 <span className={`hostel-type-badge-light ${hostel.type}`}>
                   {hostel.type === 'boys' ? '♂ Boys' : hostel.type === 'girls' ? '♀ Girls' : '⚥ Co-ed'}
                 </span>
-                <div className="hostel-search-rating"><Star size={16} fill="#FFB547" color="#FFB547" /> {hostel.rating || 'New'}</div>
               </div>
               <h1>{hostel.name}</h1>
               <p className="detail-location"><MapPin size={16} /> {hostel.address || 'Location not provided'}</p>

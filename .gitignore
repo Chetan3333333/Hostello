@@ -31,3 +31,6 @@ output.txt
 *.njsproj
 *.sln
 *.sw?
+
+# Database backups (contain tenants' personal details) - never commit these
+backups/

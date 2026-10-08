@@ -19,7 +19,6 @@ export const hostelsData = [
       'Dhulapally X Road - 400m',
       'Apollo Pharmacy - 100m',
     ],
-    rating: 4.3,
     totalRooms: 20,
     amenities: ['wifi', 'food', 'ro_water', 'power_backup', 'parking', 'cctv', 'laundry', 'study_room', 'hot_water'],
     rules: '1. Gate closes at 10:00 PM\n2. No smoking or alcohol\n3. Visitors allowed only in common area\n4. Maintain cleanliness\n5. ID card mandatory',

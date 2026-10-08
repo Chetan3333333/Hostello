@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Save, MapPin } from 'lucide-react';
 import { useApp } from '../../hooks/useApp';
 import { amenityLabels } from '../../data/mockData';
@@ -6,9 +7,26 @@ import { amenityLabels } from '../../data/mockData';
 function HostelProfileForm({ currentHostel, updateHostel }) {
   const [form, setForm] = useState({ ...currentHostel });
 
+  // Only the fields this form actually shows are sent. The room count is kept
+  // accurate by the database, so it must never be written back from a copy the
+  // screen took when it opened.
+  const EDITABLE_FIELDS = [
+    'name', 'type', 'address', 'phone', 'whatsapp', 'email',
+    'description', 'nearbyLandmarks', 'amenities', 'rules', 'established'
+  ];
+
   const handleSave = async (e) => {
     e.preventDefault();
-    await updateHostel(currentHostel.id, form);
+    if (!(form.name || '').trim()) {
+      toast.error('Hostel name is required');
+      return;
+    }
+    const updates = {};
+    EDITABLE_FIELDS.forEach(field => {
+      if (form[field] !== undefined) updates[field] = form[field];
+    });
+    updates.name = form.name.trim();
+    await updateHostel(currentHostel.id, updates);
   };
 
   const toggleAmenity = (amenity) => {
@@ -41,7 +59,7 @@ function HostelProfileForm({ currentHostel, updateHostel }) {
           <div className="form-row">
             <div className="form-group">
               <label>Hostel Name</label>
-              <input className="form-input" value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
+              <input className="form-input" required value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
             <div className="form-group">
               <label>Type</label>
