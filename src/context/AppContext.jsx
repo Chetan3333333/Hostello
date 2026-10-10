@@ -790,9 +790,6 @@ export function AppProvider({ children }) {
         ...prev,
         payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
       }));
-      if (updates.status === 'written_off' && payment) {
-        logActivity('payment', `₹${payment.amount.toLocaleString()} written off for ${payment.tenantName}`);
-      }
       if (updates.amount !== undefined && Number(updates.amount) !== Number(payment?.amount)) {
         logActivity('payment', `WARNING: Pending bill amount for ${payment?.tenantName} was altered from ₹${Number(payment?.amount).toLocaleString()} to ₹${Number(updates.amount).toLocaleString()}.`);
       }
@@ -1029,7 +1026,7 @@ export function AppProvider({ children }) {
     // Pending: Pending this month only (overdue is handled in Total Outstanding)
     const pending = monthPayments.filter(p => p.status === 'pending').reduce((sum, p) => sum + p.amount, 0);
     
-    // Total Outstanding: Pending/Overdue ALL time (ignores written_off)
+    // Total Outstanding: Pending/Overdue ALL time (cancelled bills do not count)
     const totalOutstanding = currentPayments
       .filter(p => p.status === 'pending' || p.status === 'overdue')
       .reduce((sum, p) => sum + p.amount, 0);
