@@ -42,7 +42,13 @@ export default function HostelSearch() {
   const [showFilters, setShowFilters] = useState(false);
 
   const hostels = useMemo(() => {
-    let result = [...data.hostels];
+    // The student pages show published hostels only. The database already
+    // hides them from visitors, but an owner who is signed in is allowed to
+    // read his OWN hostel so his dashboard keeps working - which would
+    // otherwise let him see his hidden hostel here and think the switch had
+    // not worked. Filtering here means the owner sees exactly what a student
+    // sees, so he can confirm his hostel really is hidden.
+    let result = data.hostels.filter(h => h.isPublished !== false);
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(h =>

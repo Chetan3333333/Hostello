@@ -26,7 +26,9 @@ const PUBLIC_REFRESH_MS = 30000;
 export default function HostelDetail() {
   const { id } = useParams();
   const { data, refreshPublicData } = useApp();
-  const hostel = data.hostels.find(h => h.id === id);
+  // Published hostels only - see the note in HostelSearch. An owner opening
+  // his own hidden hostel's public page should see what a student sees.
+  const hostel = data.hostels.find(h => h.id === id && h.isPublished !== false);
   const rooms = data.rooms.filter(r => r.hostelId === id && !r.isArchived);
   const minPrice = getStartingPrice(rooms, hostel);
 
