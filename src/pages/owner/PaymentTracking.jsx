@@ -51,14 +51,11 @@ export default function PaymentTracking() {
   };
 
   const handleRevertPayment = (payment) => {
-    const wasWrittenOff = payment.status === 'written_off';
     setConfirmDialog({
-      title: wasWrittenOff ? 'Restore Written-off Bill' : 'Undo Payment',
-      message: wasWrittenOff
-        ? `Restore the written-off bill of ₹${payment.amount.toLocaleString()} for ${payment.tenantName} (${payment.month})? It will be unpaid again and count in your dues.`
-        : `Undo the ₹${payment.amount.toLocaleString()} payment from ${payment.tenantName} for ${payment.month}? The bill will be marked unpaid again.`,
+      title: 'Undo Payment',
+      message: `Undo the ₹${payment.amount.toLocaleString()} payment from ${payment.tenantName} for ${payment.month}? The bill will be marked unpaid again.`,
       type: 'warning',
-      confirmText: wasWrittenOff ? 'Restore Bill' : 'Undo Payment',
+      confirmText: 'Undo Payment',
       onConfirm: async () => {
         const success = await revertPayment(payment.id);
         if (success) setConfirmDialog(null);
@@ -148,8 +145,8 @@ export default function PaymentTracking() {
     {
       header: 'Status', accessor: 'status',
       render: row => (
-        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : (row.status === 'written_off' || row.status === 'cancelled') ? 'ghost' : 'warning'}`}>
-          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : row.status === 'written_off' ? 'Archived' : row.status === 'cancelled' ? 'Cancelled' : '⏳ Pending'}
+        <span className={`badge badge-${row.status === 'paid' ? 'success' : row.status === 'overdue' ? 'danger' : row.status === 'cancelled' ? 'ghost' : 'warning'}`}>
+          {row.status === 'paid' ? '✓ Paid' : row.status === 'overdue' ? '⚠ Overdue' : row.status === 'cancelled' ? 'Cancelled' : '⏳ Pending'}
         </span>
       )
     },
@@ -165,7 +162,7 @@ export default function PaymentTracking() {
             </div>
           );
         }
-        if (row.status === 'paid' || row.status === 'written_off') {
+        if (row.status === 'paid') {
           return (
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRevertPayment(row); }} title="Undo payment">
@@ -221,7 +218,7 @@ export default function PaymentTracking() {
           {months.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <div className="room-filters" style={{ marginBottom: 0 }}>
-          {['all', 'paid', 'pending', 'overdue', 'written_off', 'cancelled'].map(s => (
+          {['all', 'paid', 'pending', 'overdue', 'cancelled'].map(s => (
             <button key={s} className={`filter-chip ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>
               {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
             </button>
