@@ -90,7 +90,7 @@ export function AppProvider({ children }) {
 
   const fetchPublicData = useCallback(async () => {
     const [{ data: hostelsData, error: hostelsError }, { data: roomsData, error: roomsError }] = await Promise.all([
-      supabase.from('hostels').select('id,name,type,address,phone,whatsapp,email,description,nearby_landmarks,total_rooms,amenities,rules,pricing,established,created_at'),
+      supabase.from('hostels').select('id,name,type,address,phone,whatsapp,email,description,nearby_landmarks,total_rooms,amenities,rules,pricing,established,is_published,created_at'),
       supabase.from('rooms').select(PUBLIC_ROOM_COLUMNS).eq('is_archived', false)
     ]);
 

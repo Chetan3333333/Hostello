@@ -12,7 +12,8 @@ function HostelProfileForm({ currentHostel, updateHostel }) {
   // screen took when it opened.
   const EDITABLE_FIELDS = [
     'name', 'type', 'address', 'phone', 'whatsapp', 'email',
-    'description', 'nearbyLandmarks', 'amenities', 'rules', 'established'
+    'description', 'nearbyLandmarks', 'amenities', 'rules', 'established',
+    'isPublished'
   ];
 
   const handleSave = async (e) => {
@@ -54,6 +55,31 @@ function HostelProfileForm({ currentHostel, updateHostel }) {
       </div>
 
       <form onSubmit={handleSave}>
+        <div className="profile-section">
+          <h3>Public Listing</h3>
+          <label
+            className={`amenity-checkbox ${form.isPublished ? 'checked' : ''}`}
+            style={{
+              borderColor: form.isPublished ? 'var(--success)' : '',
+              backgroundColor: form.isPublished ? 'rgba(0, 196, 140, 0.1)' : ''
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={!!form.isPublished}
+              onChange={e => setForm({ ...form, isPublished: e.target.checked })}
+            />
+            <span style={{ color: form.isPublished ? 'var(--success)' : 'inherit' }}>
+              Show this hostel to students on the public website
+            </span>
+          </label>
+          <p style={{ marginTop: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            {form.isPublished
+              ? 'Students can find this hostel in search and see its rooms, prices and contact details.'
+              : 'This hostel is hidden from students. Nobody can find it in search or open its page. Your own dashboard is not affected.'}
+          </p>
+        </div>
+
         <div className="profile-section">
           <h3>Basic Information</h3>
           <div className="form-row">
