@@ -718,7 +718,7 @@ export function AppProvider({ children }) {
     // Strict Blocker: Prevent checkout if tenant has unpaid bills
     const unpaidBills = data.payments.filter(p => p.tenantId === tenantId && ['pending', 'overdue'].includes(p.status));
     if (unpaidBills.length > 0) {
-      toast.error(`Cannot check out tenant. ${tenant.name} still has unpaid bills. Please collect the pending rent or manually mark the bills as written-off before checking them out.`, { duration: 6000 });
+      toast.error(`Cannot check out ${tenant.name}: there are still unpaid bills. Either mark them paid, or cancel them on the Payments page, before checking out.`, { duration: 6000 });
       return false;
     }
 
@@ -908,6 +908,69 @@ export function AppProvider({ children }) {
     }
   }, [data.payments, data.tenants, logActivity]);
 
+  // Undo a cancelled bill: it goes back to being unpaid, exactly as it was.
+  // The database already allows this, and already refuses it for a tenant who
+  // has checked out. The one way it can legitimately fail is when the owner has
+  // since created a replacement bill for the same month, because a tenant may
+  // only have one rent bill per month. We check for that here first, so the
+  // owner reads a plain sentence instead of a database error.
+  const restorePayment = useCallback(async (paymentId) => {
+    const payment = data.payments.find(p => p.id === paymentId);
+    if (!payment) return false;
+    if (payment.status !== 'cancelled') {
+      toast.error('This bill is not cancelled.');
+      return false;
+    }
+
+    const tenant = data.tenants.find(t => t.id === payment.tenantId);
+    if (tenant && !tenant.isActive) {
+      toast.error(`Cannot undo: ${payment.tenantName} has already checked out`);
+      return false;
+    }
+
+    const replacement = data.payments.find(p =>
+      p.id !== payment.id &&
+      p.tenantId === payment.tenantId &&
+      p.month === payment.month &&
+      p.kind === 'rent' &&
+      !p.isRemainder &&
+      p.status !== 'cancelled'
+    );
+    if (replacement) {
+      toast.error(
+        `${payment.tenantName} already has a rent bill for ${payment.month}. Cancel that one first if you want this one back.`,
+        { duration: 6000 }
+      );
+      return false;
+    }
+
+    // Overdue if the due date has already passed, otherwise pending - the same
+    // rule the Undo button on a paid bill uses.
+    const correctStatus = payment.dueDate && toLocalDateString() > payment.dueDate ? 'overdue' : 'pending';
+    const updates = { status: correctStatus, paidDate: null };
+
+    try {
+      const { error } = await supabase.from('payments').update(toSnakeCase(updates)).eq('id', paymentId);
+      if (error) throw error;
+      setData(prev => ({
+        ...prev,
+        payments: prev.payments.map(p => p.id === paymentId ? { ...p, ...updates } : p)
+      }));
+      logActivity('payment', `Cancelled bill of ₹${payment.amount.toLocaleString()} restored for ${payment.tenantName} (${payment.month})`);
+      toast.success(`Bill restored. It is ${correctStatus} again and counts in your dues.`);
+      return true;
+    } catch (err) {
+      // Safety net for the same clash arriving from a second device.
+      if (err?.code === '23505') {
+        toast.error(`${payment.tenantName} already has a rent bill for ${payment.month}.`, { duration: 6000 });
+      } else {
+        toast.error(err?.message || 'Failed to restore bill');
+      }
+      console.error(err);
+      return false;
+    }
+  }, [data.payments, data.tenants, logActivity]);
+
   const cancelPayment = useCallback(async (paymentId) => {
     const payment = data.payments.find(p => p.id === paymentId);
     if (payment && payment.status === 'paid') {
@@ -983,7 +1046,7 @@ export function AppProvider({ children }) {
     addTenant, updateTenant, checkoutTenant, swapTenants,
     loadError, retryLoad, hasSession: !!session, searchActivityLogs,
     refreshPublicData: fetchPublicData,
-    addPayment, updatePayment, recordPayment, revertPayment, cancelPayment,
+    addPayment, updatePayment, recordPayment, revertPayment, cancelPayment, restorePayment,
     updateHostel, getStats, hostels: data.hostels,
     isOwnerLoggedIn, ownerHostelId, ownerLogin, ownerLogout,
   };
