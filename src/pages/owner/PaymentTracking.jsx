@@ -8,7 +8,7 @@ import { IndianRupee, Clock, AlertTriangle, Plus, CheckCircle, MessageCircle } f
 import { getCurrentMonth, toLocalDateString } from '../../lib/date';
 
 export default function PaymentTracking() {
-  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, cancelPayment, updatePayment } = useApp();
+  const { currentPayments, currentTenants, addPayment, recordPayment, revertPayment, cancelPayment, restorePayment } = useApp();
   const currentMonthStr = getCurrentMonth();
   const [monthFilter, setMonthFilter] = useState(currentMonthStr);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -79,14 +79,15 @@ export default function PaymentTracking() {
     });
   };
 
-  const handleWriteOffPayment = (payment) => {
+  // Undo on a cancelled bill: puts it back exactly as it was, unpaid.
+  const handleRestorePayment = (payment) => {
     setConfirmDialog({
-      title: 'Write Off Debt',
-      message: `Are you sure you want to write off ₹${payment.amount.toLocaleString()} for ${payment.tenantName}? This will archive the debt and remove it from your Dashboard's Total Outstanding amount.`,
+      title: 'Undo Cancelled Bill',
+      message: `Bring back the cancelled bill of ₹${payment.amount.toLocaleString()} for ${payment.tenantName} (${payment.month})? It will be unpaid again and count in your dues.`,
       type: 'warning',
-      confirmText: 'Write Off Debt',
+      confirmText: 'Undo Cancel',
       onConfirm: async () => {
-        const success = await updatePayment(payment.id, { status: 'written_off' });
+        const success = await restorePayment(payment.id);
         if (success) setConfirmDialog(null);
       }
     });
@@ -156,7 +157,13 @@ export default function PaymentTracking() {
       header: 'Action', sortable: false,
       render: row => {
         if (row.status === 'cancelled') {
-          return <span style={{ color: 'var(--text-muted)' }}>Cancelled</span>;
+          return (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleRestorePayment(row); }} title="Undo the cancellation and bring this bill back">
+                Undo
+              </button>
+            </div>
+          );
         }
         if (row.status === 'paid' || row.status === 'written_off') {
           return (
@@ -172,11 +179,6 @@ export default function PaymentTracking() {
             <button className="btn btn-success btn-sm" onClick={(e) => { e.stopPropagation(); handleRecordPayment(row); }}>
               <CheckCircle size={14} /> Mark Paid
             </button>
-            {row.status === 'overdue' && (
-              <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); handleWriteOffPayment(row); }} title="Write off unrecoverable debt">
-                Write-off
-              </button>
-            )}
             <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleCancelPayment(row); }} title="Cancel this bill (it stays in the list, marked cancelled)">
               Cancel Bill
             </button>
