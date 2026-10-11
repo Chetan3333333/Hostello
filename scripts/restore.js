@@ -12,7 +12,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { supabaseAdmin } from './supabaseAdmin.js';
+import { createSupabaseAdminClient } from './supabaseAdmin.js';
+const supabaseAdmin = createSupabaseAdminClient();
 
 const ORDER = ['hostels', 'owner_profiles', 'rooms', 'tenants', 'payments', 'activity_logs'];
 const CHUNK = 500;

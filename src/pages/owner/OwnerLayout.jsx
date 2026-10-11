@@ -30,7 +30,7 @@ export default function OwnerLayout() {
       <aside className={`owner-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <Building2 size={24} />
+            <img src="/logo.png" alt="AccoHost" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain' }} />
             <span>AccoHost</span>
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>

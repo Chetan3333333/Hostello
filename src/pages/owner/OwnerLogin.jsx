@@ -89,8 +89,8 @@ export default function OwnerLogin() {
 
         <div className="login-card">
           <div className="login-logo">
-            <div className="login-logo-icon">
-              <Building2 size={28} />
+            <div className="login-logo-icon" style={{ background: 'transparent' }}>
+              <img src="/logo.png" alt="AccoHost" style={{ width: '48px', height: '48px', borderRadius: '10px', objectFit: 'contain' }} />
             </div>
             <h1>AccoHost</h1>
             <p>Owner Access</p>

@@ -14,7 +14,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { supabaseAdmin } from './supabaseAdmin.js';
+import { createSupabaseAdminClient } from './supabaseAdmin.js';
+const supabaseAdmin = createSupabaseAdminClient();
 
 const TABLES = ['hostels', 'owner_profiles', 'rooms', 'tenants', 'payments', 'activity_logs'];
 const PAGE = 1000;
@@ -23,10 +24,11 @@ async function fetchAll(table) {
   let rows = [];
   for (let page = 0; page < 100; page += 1) {
     const from = page * PAGE;
+    const orderCol = table === 'owner_profiles' ? 'user_id' : 'id';
     const { data, error } = await supabaseAdmin
       .from(table)
       .select('*')
-      .order('id')
+      .order(orderCol)
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`${table}: ${error.message}`);
     if (!data || data.length === 0) break;

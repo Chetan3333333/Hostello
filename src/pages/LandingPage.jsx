@@ -9,7 +9,7 @@ export default function LandingPage() {
       <nav className="landing-nav">
         <div className="landing-nav-inner">
           <div className="landing-logo">
-            <Building2 size={28} />
+            <img src="/logo.png" alt="AccoHost" style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'contain' }} />
             <span>AccoHost</span>
           </div>
         </div>
