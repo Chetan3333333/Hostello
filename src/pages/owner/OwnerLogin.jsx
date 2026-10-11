@@ -22,7 +22,7 @@ export default function OwnerLogin() {
   }, [contextLoading, isOwnerLoggedIn, navigate]);
 
   if (contextLoading) {
-    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
+    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading AccoHost Data...</div>;
   }
 
   const handleGoogleLogin = async () => {
@@ -92,7 +92,7 @@ export default function OwnerLogin() {
             <div className="login-logo-icon">
               <Building2 size={28} />
             </div>
-            <h1>Hostello</h1>
+            <h1>AccoHost</h1>
             <p>Owner Access</p>
           </div>
 

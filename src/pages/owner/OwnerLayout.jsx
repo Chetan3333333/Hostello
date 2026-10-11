@@ -31,7 +31,7 @@ export default function OwnerLayout() {
         <div className="sidebar-header">
           <div className="sidebar-logo">
             <Building2 size={24} />
-            <span>Hostello</span>
+            <span>AccoHost</span>
           </div>
           <button className="sidebar-close" onClick={() => setSidebarOpen(false)}>
             <X size={20} />
