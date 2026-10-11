@@ -14,10 +14,12 @@ const PaymentTracking = lazy(() => import('./pages/owner/PaymentTracking'));
 const HostelProfile = lazy(() => import('./pages/owner/HostelProfile'));
 const HostelSearch = lazy(() => import('./pages/student/HostelSearch'));
 const HostelDetail = lazy(() => import('./pages/student/HostelDetail'));
+const PrivacyPolicy = lazy(() => import('./pages/public/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/public/TermsOfService'));
 
 const RouteLoading = () => (
   <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>
-    Loading Hostello...
+    Loading AccoHost...
   </div>
 );
 
@@ -25,7 +27,7 @@ function ProtectedOwnerRoute({ children }) {
   const { isOwnerLoggedIn, loading, hasSession, loadError, retryLoad } = useApp();
 
   if (loading) {
-    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading Hostello Data...</div>;
+    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading AccoHost Data...</div>;
   }
   // Still signed in, but the data could not be fetched (usually a network hiccup).
   // Offer Retry instead of sending the owner back to the login page.
@@ -50,6 +52,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/search" element={<HostelSearch />} />
       <Route path="/hostel/:id" element={<HostelDetail />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<TermsOfService />} />
 
       {/* Owner Login */}
       <Route path="/owner/login" element={<OwnerLogin />} />

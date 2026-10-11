@@ -10,7 +10,7 @@ export default function LandingPage() {
         <div className="landing-nav-inner">
           <div className="landing-logo">
             <Building2 size={28} />
-            <span>Hostello</span>
+            <span>AccoHost</span>
           </div>
         </div>
       </nav>
@@ -27,9 +27,9 @@ export default function LandingPage() {
 
         <div className="role-hero-content">
           <div className="hero-badge-glow">
-            <span className="hero-badge">🏠 The #1 Hostel Platform Near Mallareddy College</span>
+            <span className="hero-badge">🏠 Smart Accommodation & Hostel Management</span>
           </div>
-          <h1>Welcome to <span className="hero-gradient-text">Hostello</span></h1>
+          <h1>Welcome to <span className="hero-gradient-text">AccoHost</span></h1>
           <p className="role-subtitle">
             The smartest way to find and manage hostels. Choose how you'd like to continue.
           </p>
@@ -138,9 +138,14 @@ export default function LandingPage() {
         <div className="role-footer-inner">
           <div className="landing-logo" style={{ fontSize: '1.1rem' }}>
             <Building2 size={20} />
-            <span>Hostello</span>
+            <span>AccoHost</span>
           </div>
-          <p>© 2026 Hostello. Built with ❤️ for students & hostel owners near Mallareddy Engineering College.</p>
+          <p>© 2026 AccoHost. Smart Hostel & PG Management Software.</p>
+          <div style={{ display: 'flex', gap: '16px', marginTop: '12px', justifyContent: 'center', alignItems: 'center' }}>
+            <Link to="/privacy" style={{ color: '#9B9BB4', fontSize: '0.85rem', textDecoration: 'none' }}>Privacy Policy</Link>
+            <span style={{ color: '#4B4B60' }}>•</span>
+            <Link to="/terms" style={{ color: '#9B9BB4', fontSize: '0.85rem', textDecoration: 'none' }}>Terms of Service</Link>
+          </div>
         </div>
       </footer>
     </div>
