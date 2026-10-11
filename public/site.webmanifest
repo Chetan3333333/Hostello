@@ -1,7 +1,7 @@
 {
-  "name": "AccoHost — Smart Hostel & PG Management",
+  "name": "AccoHost — Smart Hostel Management",
   "short_name": "AccoHost",
-  "description": "Smart cloud management software for hostels and paying guests (PG).",
+  "description": "Smart cloud management software for hostels and student accommodations.",
   "icons": [
     {
       "src": "/favicon-16x16.png",

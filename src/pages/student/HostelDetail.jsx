@@ -70,7 +70,9 @@ export default function HostelDetail() {
     <div className="student-page">
       <nav className="student-nav">
         <div className="student-nav-inner">
-          <Link to="/" className="landing-logo"><Building2 size={24} /> <span>Hostello</span></Link>
+          <Link to="/" className="landing-logo">
+            <img src="/logo.png" alt="AccoHost" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain' }} /> <span>AccoHost</span>
+          </Link>
           <Link to="/search" className="btn btn-outline" style={{ borderColor: 'var(--light-border)', color: 'var(--light-text)' }}>
             <ArrowLeft size={16} /> Back to Search
           </Link>
@@ -183,7 +185,7 @@ export default function HostelDetail() {
                 </a>
               )}
               {hostel.whatsapp && (
-                <a href={`https://wa.me/91${hostel.whatsapp}?text=Hi, I found your hostel on Hostello. I'm interested in booking a room.`} target="_blank" rel="noreferrer" className="btn btn-success btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
+                <a href={`https://wa.me/91${hostel.whatsapp}?text=Hi, I found your hostel on AccoHost. I'm interested in booking a room.`} target="_blank" rel="noreferrer" className="btn btn-success btn-lg" style={{ width: '100%', justifyContent: 'center' }}>
                   <MessageCircle size={18} /> WhatsApp
                 </a>
               )}
