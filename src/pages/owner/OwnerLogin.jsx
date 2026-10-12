@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, ArrowLeft, Shield, Mail } from 'lucide-react';
+import { ArrowLeft, Shield, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../../hooks/useApp';
 import { supabase } from '../../lib/supabase';
