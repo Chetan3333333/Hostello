@@ -140,7 +140,7 @@ export default function LandingPage() {
             <img src="/logo.png" alt="AccoHost" style={{ width: '22px', height: '22px', borderRadius: '4px', objectFit: 'contain' }} />
             <span>AccoHost</span>
           </div>
-          <p>© 2026 AccoHost. Smart Hostel Management.</p>
+          <p>© 2026 AccoHost. Smart Accommodation & Hostel Management.</p>
           <div style={{ display: 'flex', gap: '16px', marginTop: '12px', justifyContent: 'center', alignItems: 'center' }}>
             <Link to="/privacy" style={{ color: '#9B9BB4', fontSize: '0.85rem', textDecoration: 'none' }}>Privacy Policy</Link>
             <span style={{ color: '#4B4B60' }}>•</span>

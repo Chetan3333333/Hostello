@@ -71,7 +71,8 @@ export default function HostelDetail() {
       <nav className="student-nav">
         <div className="student-nav-inner">
           <Link to="/" className="landing-logo">
-            <img src="/logo.png" alt="AccoHost" style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain' }} /> <span>AccoHost</span>
+            <img src="/logo.png" alt="AccoHost" />
+            <span>AccoHost</span>
           </Link>
           <Link to="/search" className="btn btn-outline" style={{ borderColor: 'var(--light-border)', color: 'var(--light-text)' }}>
             <ArrowLeft size={16} /> Back to Search
