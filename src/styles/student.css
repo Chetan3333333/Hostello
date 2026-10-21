@@ -409,3 +409,8 @@
   .search-results-grid { grid-template-columns: 1fr; }
   .detail-header h1 { font-size: 1.35rem; }
 }
+
+/* iPhone Safari full-height fix - see the note in landing.css. */
+@supports (min-height: 100dvh) {
+  .student-page { min-height: 100dvh; }
+}

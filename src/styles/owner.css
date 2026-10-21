@@ -1182,3 +1182,12 @@ select.login-input {
 .google-login-btn { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; padding: 14px; background: rgba(255, 255, 255, 0.05); color: #EEEEF5; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; transition: all 0.2s ease; }
 .google-login-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.2); }
 .google-login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* iPhone Safari full-height fix - see the note in landing.css. Kept in
+   @supports so the 100vh rules above survive minification for old browsers. */
+@supports (min-height: 100dvh) {
+  .owner-layout { min-height: 100dvh; }
+  .owner-sidebar { min-height: 100dvh; }
+  .owner-main { min-height: 100dvh; }
+  .owner-login-page { min-height: 100dvh; }
+}

@@ -3,8 +3,7 @@ import { ArrowLeft, Shield, Lock } from 'lucide-react';
 
 export default function PrivacyPolicy() {
   return (
-    <div style={{
-      minHeight: '100vh',
+    <div className="page-min-screen" style={{
       backgroundColor: '#0F1123',
       color: '#EEEEF5',
       fontFamily: "'Inter', sans-serif",
