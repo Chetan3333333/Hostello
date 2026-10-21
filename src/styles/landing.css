@@ -354,3 +354,12 @@
   .role-hero-content h1 { font-size: 1.875rem; }
   .role-features { grid-template-columns: 1fr; }
 }
+
+/* iPhone Safari: 100vh is taller than the visible screen because it does not
+   subtract the address bar, so full-height boxes overflow and the page jumps
+   as the bar hides and reappears. 100dvh is the height actually visible.
+   This sits in @supports so the 100vh above survives minification and keeps
+   working on older browsers that do not know dvh. */
+@supports (min-height: 100dvh) {
+  .role-hero { min-height: 100dvh; }
+}

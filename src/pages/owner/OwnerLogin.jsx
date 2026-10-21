@@ -22,7 +22,7 @@ export default function OwnerLogin() {
   }, [contextLoading, isOwnerLoggedIn, navigate]);
 
   if (contextLoading) {
-    return <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)' }}>Loading AccoHost Data...</div>;
+    return <div className="screen-center">Loading AccoHost Data...</div>;
   }
 
   const handleGoogleLogin = async () => {
