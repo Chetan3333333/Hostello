@@ -1,9 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { useApp } from '../../hooks/useApp';
 import StatCard from '../../components/StatCard';
 import { BedDouble, Users, DoorOpen, IndianRupee, AlertTriangle, TrendingUp, UserPlus, CreditCard, Wrench, UserCog, Clock, Settings, Search } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Link } from 'react-router-dom';
+// The charting library is ~109 KB compressed. Loading it separately means the
+// owner sees his figures straight away instead of waiting for the charts.
+const RevenueChart = lazy(() => import('../../components/charts/RevenueChart'));
+const OccupancyChart = lazy(() => import('../../components/charts/OccupancyChart'));
+
+function ChartLoading() {
+  return (
+    <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--dark-text-muted)', fontSize: '0.8125rem' }}>
+      Loading chart...
+    </div>
+  );
+}
 
 function getRelativeTime(dateString) {
   if (!dateString) return '';
@@ -20,17 +31,6 @@ function getRelativeTime(dateString) {
   if (days < 30) return `${days} days ago`;
   const months = Math.floor(days / 30);
   return months === 1 ? '1 month ago' : `${months} months ago`;
-}
-
-function CustomTooltip({ active, payload }) {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{ background: '#1A1D36', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)' }}>
-        <p style={{ color: '#EEEEF5', fontSize: '0.8125rem', fontWeight: 600 }}>₹{payload[0].value.toLocaleString()}</p>
-      </div>
-    );
-  }
-  return null;
 }
 
 const ACTIVITY_PAGE_SIZE = 100;
@@ -157,21 +157,9 @@ export default function Dashboard() {
             </span>
           </div>
           <div className="chart-container" style={{ height: '250px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueTrend}>
-                <defs>
-                  <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6C5CE7" stopOpacity={0.3} />
-                    <stop offset="100%" stopColor="#6C5CE7" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#6B6B80', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#6B6B80', fontSize: 12 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="revenue" stroke="#6C5CE7" strokeWidth={2.5} fill="url(#revenueGradient)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartLoading />}>
+              <RevenueChart data={revenueTrend} />
+            </Suspense>
           </div>
         </div>
 
@@ -182,16 +170,9 @@ export default function Dashboard() {
             <span className="badge badge-primary">{stats.occupancyRate}%</span>
           </div>
           <div className="chart-container" style={{ height: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={occupancyData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} dataKey="value" paddingAngle={4} strokeWidth={0}>
-                  {occupancyData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value, name) => [`${value} rooms`, name]} contentStyle={{ background: '#1A1D36', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '0.8125rem' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartLoading />}>
+              <OccupancyChart data={occupancyData} />
+            </Suspense>
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '8px' }}>
             {occupancyData.map(d => (

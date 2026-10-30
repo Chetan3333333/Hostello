@@ -8,17 +8,37 @@ const ACTIVITY_PAGE_SIZE = 100;
 // A phone that switches between wifi and mobile data, or locks its screen mid
 // request, can lose the reply to a request the server already answered. Without
 // a time limit the app waits for it for ever and stays on the loading screen.
-const LOAD_TIMEOUT_MS = 15000;
+// 15 seconds was far too short on a phone. On mobile data the app has to
+// fetch its code and then five sets of records, and that regularly takes
+// longer than 15s even when every request is succeeding - which made the app
+// give up and tell the owner his internet was broken when it was not.
+// 60 seconds still rescues a genuinely stuck request without punishing a
+// connection that is merely slow.
+const LOAD_TIMEOUT_MS = 60000;
 
 const withTimeout = (promise, ms = LOAD_TIMEOUT_MS) => {
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(
-      () => reject(new Error('Request timed out. Please check your internet connection.')),
+      () => reject(new Error('TIMEOUT')),
       ms
     );
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+};
+
+// Never blame the internet for something we cannot actually tell. The browser
+// knows whether the device is offline; anything else is just slow or a server
+// problem, and saying "check your internet" sends the owner hunting for a
+// fault that is not there.
+const loadFailureMessage = (error) => {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return 'You appear to be offline. Reconnect and press Retry.';
+  }
+  if (error?.message === 'TIMEOUT') {
+    return 'Loading is taking longer than usual. Press Retry.';
+  }
+  return 'Could not load your data. Press Retry.';
 };
 // Supabase returns at most 1,000 rows per request.  Tables that grow over
 // time (tenants, payments) will silently lose older records without this.
@@ -196,7 +216,7 @@ export function AppProvider({ children }) {
         if (error?.code === 'PGRST116') {
           toast.error('This account is not linked to a hostel yet. Please contact support.');
         } else {
-          toast.error('Could not load your data. Check your internet and press Retry.');
+          toast.error(loadFailureMessage(error));
         }
         if (isActive) setLoadError(true);
       } finally {
@@ -232,7 +252,7 @@ export function AppProvider({ children }) {
             // No owner_profiles row: this account really is not linked to a hostel.
             toast.error('This account is not linked to a hostel yet. Please contact support.');
           } else {
-            toast.error('Could not load your data. Check your internet and press Retry.');
+            toast.error(loadFailureMessage(error));
           }
           setLoadError(true);
         }
