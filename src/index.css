@@ -340,6 +340,101 @@ select.form-input {
   .screen-center { min-height: 100dvh; }
   .page-min-screen { min-height: 100dvh; }
 }
+/* ===== APP LOADING SCREEN =====
+   Replaces a single line of plain text with the AccoHost logo, the app name
+   and a moving bar. The wait itself is not shorter; the difference is that
+   the owner can see the app is working instead of staring at what looks like
+   a frozen page.
+
+   The bar deliberately shows no percentage. The app cannot know how long the
+   owner's network will take, and a fake percentage that sticks at 90% feels
+   worse than no percentage at all. */
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 24px;
+  min-height: 100vh;
+}
+
+/* Used on the owner login and owner dashboard loaders ONLY. Both of those
+   screens are dark, and without this the owner saw a white screen flash to
+   dark the moment loading finished. The student and landing pages are light,
+   so they use the plain version above, which sets no background of its own
+   and therefore cannot flash the wrong colour on any page. */
+.app-loading--dark {
+  background: var(--dark-bg);
+  color: var(--dark-text);
+}
+
+/* logo.png has a solid black background and no transparency, so on its own
+   it shows as a hard black square. Rounding it turns that into the same
+   rounded app-icon tile the owner taps on his phone home screen, which looks
+   deliberate on the dark owner screens and on the light student pages alike. */
+.app-loading-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  animation: appLoadingPulse 1.8s ease-in-out infinite;
+}
+
+.app-loading-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.app-loading-bar {
+  width: 160px;
+  height: 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(108, 92, 231, 0.18);
+}
+
+.app-loading-bar span {
+  display: block;
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primary);
+  animation: appLoadingSlide 1.2s ease-in-out infinite;
+}
+
+.app-loading-message {
+  font-size: 0.8125rem;
+  opacity: 0.65;
+}
+
+@keyframes appLoadingPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.72; transform: scale(0.95); }
+}
+
+@keyframes appLoadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+/* Same reason as .screen-center above: on iPhone Safari 100vh is taller than
+   the part of the screen you can actually see. Kept in @supports so the
+   100vh above survives minification and older browsers. */
+@supports (min-height: 100dvh) {
+  .app-loading { min-height: 100dvh; }
+}
+
+/* Some people switch animation off in their phone settings, usually because
+   movement makes them feel unwell. Honour that: the screen still says what it
+   is doing, it just stops moving. */
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-logo,
+  .app-loading-bar span { animation: none; }
+}
+
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 
 /* ===== RESPONSIVE ===== */

@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AccoHost — Smart Accommodation & Hostel Management</title>
 
+    <!-- Warm up the connection to the database before React even starts.
+         Finding the server and securing the connection used to happen only
+         when the first query ran, costing 200-500ms on every visit. -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin />
+    <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%" />
+
     <!-- Cross-Browser Favicons -->
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="shortcut icon" href="/favicon.ico" />

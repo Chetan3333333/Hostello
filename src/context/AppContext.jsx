@@ -14,6 +14,12 @@ const ACTIVITY_PAGE_SIZE = 100;
 // give up and tell the owner his internet was broken when it was not.
 // 60 seconds still rescues a genuinely stuck request without punishing a
 // connection that is merely slow.
+// All the "could not load" messages share this id. react-hot-toast replaces a
+// toast that already has the same id instead of adding another one, so the
+// owner sees ONE red message however many parts of the app noticed the same
+// failure. Before this he could get three identical boxes stacked up.
+const LOAD_ERROR_TOAST = { id: 'load-error' };
+
 const LOAD_TIMEOUT_MS = 60000;
 
 const withTimeout = (promise, ms = LOAD_TIMEOUT_MS) => {
@@ -146,33 +152,29 @@ export function AppProvider({ children }) {
     if (profileError) throw profileError;
 
     const hostelId = profileData.hostel_id;
+    // The activity feed is deliberately NOT fetched here. It is 100 rows the
+    // owner cannot even see until he scrolls down the dashboard, and fetching
+    // it here meant the whole screen stayed blank until it arrived. It is
+    // loaded straight afterwards by fetchActivityLogs, which blocks nothing.
     const [
       { data: hostelData, error: hostelError },
       { data: roomsData, error: roomsError },
       tenantsData,
-      paymentsData,
-      { data: activityLogsData, error: activityLogsError }
+      paymentsData
     ] = await Promise.all([
       supabase.from('hostels').select('*').eq('id', hostelId).single(),
       supabase.from('rooms').select('*').eq('hostel_id', hostelId),
       fetchAllRows(() => supabase.from('tenants').select('*').eq('hostel_id', hostelId).order('id')),
-      fetchAllRows(() => supabase.from('payments').select('*').eq('hostel_id', hostelId).order('id')),
-      supabase.from('activity_logs')
-        .select('*')
-        .eq('hostel_id', hostelId)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .limit(ACTIVITY_PAGE_SIZE)
+      fetchAllRows(() => supabase.from('payments').select('*').eq('hostel_id', hostelId).order('id'))
     ]);
 
-    const firstError = hostelError || roomsError || activityLogsError;
+    const firstError = hostelError || roomsError;
     if (firstError) throw firstError;
 
     const mappedHostel = mapKeys([hostelData])[0];
     setOwnerProfile({ userId, hostelId });
     ownerProfileRef.current = { userId, hostelId };
-    setHasMoreActivityLogs((activityLogsData || []).length === ACTIVITY_PAGE_SIZE);
-    
+
     setData(prev => ({
       hostels: [
         ...prev.hostels.filter(h => h.id !== hostelId),
@@ -184,9 +186,71 @@ export function AppProvider({ children }) {
       ],
       tenants: mapKeys(tenantsData),
       payments: mapKeys(paymentsData),
-      activityLogs: mapKeys(activityLogsData || [])
+      activityLogs: []
     }));
+
+    return hostelId;
   }, []);
+
+  // Loaded after the dashboard is already on screen. The feed fills itself in
+  // a moment later; nothing waits for it.
+  const fetchActivityLogs = useCallback(async (hostelId) => {
+    const { data: logs, error } = await supabase
+      .from('activity_logs')
+      .select('*')
+      .eq('hostel_id', hostelId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(ACTIVITY_PAGE_SIZE);
+
+    if (error) throw error;
+
+    setHasMoreActivityLogs((logs || []).length === ACTIVITY_PAGE_SIZE);
+    setData(prev => ({ ...prev, activityLogs: mapKeys(logs || []) }));
+  }, []);
+
+  // THE LOCK.
+  // On every refresh two things raced to load the owner's data: the startup
+  // routine, and the sign-in listener firing INITIAL_SESSION before the
+  // startup routine had finished. Both believed they were responsible, so the
+  // phone downloaded the hostel, rooms, tenants and payments TWICE at the same
+  // moment - twelve requests where six would do.
+  //
+  // This keeps the in-flight load in a ref. A second caller arriving while one
+  // is running waits for that same load instead of starting its own.
+  // The userId is stored alongside the promise on purpose. Sharing a load
+  // between two callers is only correct when they are asking for the SAME
+  // owner. If a different account ever signed in while a load was still in
+  // flight, handing it the first owner's promise would show him the first
+  // owner's hostel. That should never happen on a one-owner phone, but the
+  // check costs one comparison and the mistake would be unforgivable.
+  const ownerLoadRef = useRef(null);
+
+  const loadOwnerOnce = useCallback((userId) => {
+    if (ownerLoadRef.current && ownerLoadRef.current.userId === userId) {
+      return ownerLoadRef.current.promise;
+    }
+
+    const run = (async () => {
+      const hostelId = await fetchOwnerData(userId);
+      // Fire and forget: the feed must never hold up the dashboard.
+      fetchActivityLogs(hostelId).catch(err => console.error('Activity feed failed to load:', err));
+      return hostelId;
+    })();
+
+    const entry = { userId, promise: run };
+    ownerLoadRef.current = entry;
+    // Clear the lock once this load settles, so the next sign-in or Retry can
+    // start a fresh one. The .catch is not optional: .finally() hands back a
+    // NEW promise that also rejects when the load fails, and nobody awaits
+    // that one, so without the catch a failed load would raise an unhandled
+    // promise rejection in the browser. The real failure is still reported by
+    // whoever awaited `run`.
+    run.finally(() => {
+      if (ownerLoadRef.current === entry) ownerLoadRef.current = null;
+    }).catch(() => {});
+    return run;
+  }, [fetchOwnerData, fetchActivityLogs]);
 
   // Persistent database triggers and Realtime own the activity feed.
   const logActivity = useCallback(() => {}, []);
@@ -196,27 +260,36 @@ export function AppProvider({ children }) {
 
     const loadInitialData = async () => {
       try {
-        const [{ data: authData }] = await withTimeout(Promise.all([
-          supabase.auth.getSession(),
-          fetchPublicData()
-        ]));
+        // ONE timer for the whole startup. This used to be two 60-second waits
+        // one after the other, so a stalled connection could hold the owner on
+        // a blank screen for two full minutes.
+        await withTimeout((async () => {
+          const { data: authData } = await supabase.auth.getSession();
+          if (!isActive) return;
 
-        if (!isActive) return;
+          const initialSession = authData.session;
+          setSession(initialSession);
 
-        const initialSession = authData.session;
-        setSession(initialSession);
-
-        if (initialSession) {
-          await withTimeout(fetchOwnerData(initialSession.user.id));
-        } else {
-          clearOwnerData();
-        }
+          if (initialSession) {
+            // The owner's screens need HIS data. The public hostel list is for
+            // the student pages, so it runs alongside and is not allowed to
+            // hold up his dashboard. It used to run FIRST, and then his own
+            // hostel and rooms were fetched all over again straight after.
+            fetchPublicData().catch(err => console.error('Public hostel list failed to load:', err));
+            await loadOwnerOnce(initialSession.user.id);
+          } else {
+            // A visitor who is not signed in has nothing but the public list,
+            // so here it genuinely must succeed.
+            await fetchPublicData();
+            clearOwnerData();
+          }
+        })());
       } catch (error) {
         console.error('Error loading Hostello data:', error);
         if (error?.code === 'PGRST116') {
-          toast.error('This account is not linked to a hostel yet. Please contact support.');
+          toast.error('This account is not linked to a hostel yet. Please contact support.', LOAD_ERROR_TOAST);
         } else {
-          toast.error(loadFailureMessage(error));
+          toast.error(loadFailureMessage(error), LOAD_ERROR_TOAST);
         }
         if (isActive) setLoadError(true);
       } finally {
@@ -245,14 +318,16 @@ export function AppProvider({ children }) {
 
       const loadOwner = async () => {
         try {
-          await withTimeout(fetchOwnerData(nextSession.user.id));
+          // Goes through the lock: if the startup load is already running,
+          // this waits for that one instead of starting a second download.
+          await withTimeout(loadOwnerOnce(nextSession.user.id));
         } catch (error) {
           console.error('Error loading owner data:', error);
           if (error?.code === 'PGRST116') {
             // No owner_profiles row: this account really is not linked to a hostel.
-            toast.error('This account is not linked to a hostel yet. Please contact support.');
+            toast.error('This account is not linked to a hostel yet. Please contact support.', LOAD_ERROR_TOAST);
           } else {
-            toast.error(loadFailureMessage(error));
+            toast.error(loadFailureMessage(error), LOAD_ERROR_TOAST);
           }
           setLoadError(true);
         }
@@ -265,7 +340,7 @@ export function AppProvider({ children }) {
       isActive = false;
       listener.subscription.unsubscribe();
     };
-  }, [clearOwnerData, fetchOwnerData, fetchPublicData]);
+  }, [clearOwnerData, loadOwnerOnce, fetchPublicData]);
 
   // Searching looks at the hostel's whole history in the database, not only the
   // lines already downloaded. Security rules still apply inside the function.
@@ -285,19 +360,25 @@ export function AppProvider({ children }) {
     setLoadError(false);
     setLoading(true);
     try {
-      await withTimeout(fetchPublicData());
-      const { data: authData } = await withTimeout(supabase.auth.getSession());
-      if (authData.session) {
-        await withTimeout(fetchOwnerData(authData.session.user.id));
-      }
+      // One timer, not three in a row. Retry used to be able to hang for
+      // three full minutes before the owner got his Retry button back.
+      await withTimeout((async () => {
+        const { data: authData } = await supabase.auth.getSession();
+        if (authData.session) {
+          fetchPublicData().catch(err => console.error('Public hostel list failed to load:', err));
+          await loadOwnerOnce(authData.session.user.id);
+        } else {
+          await fetchPublicData();
+        }
+      })());
     } catch (error) {
       console.error('Retry failed:', error);
       setLoadError(true);
-      toast.error('Still could not load your data. Please try again in a moment.');
+      toast.error('Still could not load your data. Please try again in a moment.', LOAD_ERROR_TOAST);
     } finally {
       setLoading(false);
     }
-  }, [fetchOwnerData, fetchPublicData]);
+  }, [loadOwnerOnce, fetchPublicData]);
 
   const isOwnerLoggedIn = !!session && !!ownerProfile;
   const ownerHostelId = ownerProfile?.hostelId || null;
@@ -373,7 +454,7 @@ export function AppProvider({ children }) {
     if (error) return { success: false, error: error.message };
 
     try {
-      await fetchOwnerData(authData.user.id);
+      await loadOwnerOnce(authData.user.id);
       return { success: true };
     } catch (profileError) {
       await supabase.auth.signOut();
@@ -383,7 +464,7 @@ export function AppProvider({ children }) {
         error: profileError.message || 'This owner account is not linked to a hostel'
       };
     }
-  }, [clearOwnerData, fetchOwnerData]);
+  }, [clearOwnerData, loadOwnerOnce]);
 
   const ownerLogout = useCallback(async () => {
     await supabase.auth.signOut();

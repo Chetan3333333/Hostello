@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Shield, Mail } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useApp } from '../../hooks/useApp';
+import AppLoading from '../../components/AppLoading';
 import { supabase } from '../../lib/supabase';
 import '../../styles/owner.css';
 
@@ -22,7 +23,7 @@ export default function OwnerLogin() {
   }, [contextLoading, isOwnerLoggedIn, navigate]);
 
   if (contextLoading) {
-    return <div className="screen-center">Loading AccoHost Data...</div>;
+    return <AppLoading dark message="Loading your hostel…" />;
   }
 
   const handleGoogleLogin = async () => {

@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AppProvider } from './context/AppContext';
 import { useApp } from './hooks/useApp';
+import AppLoading from './components/AppLoading';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const OwnerLogin = lazy(() => import('./pages/owner/OwnerLogin'));
@@ -17,23 +18,19 @@ const HostelDetail = lazy(() => import('./pages/student/HostelDetail'));
 const PrivacyPolicy = lazy(() => import('./pages/public/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/public/TermsOfService'));
 
-const RouteLoading = () => (
-  <div className="screen-center">
-    Loading AccoHost...
-  </div>
-);
+const RouteLoading = () => <AppLoading message="Loading AccoHost…" />;
 
 function ProtectedOwnerRoute({ children }) {
   const { isOwnerLoggedIn, loading, hasSession, loadError, retryLoad } = useApp();
 
   if (loading) {
-    return <div className="screen-center">Loading AccoHost Data...</div>;
+    return <AppLoading dark message="Loading your hostel…" />;
   }
   // Still signed in, but the data could not be fetched (usually a network hiccup).
   // Offer Retry instead of sending the owner back to the login page.
   if (!isOwnerLoggedIn && hasSession && loadError) {
     return (
-      <div className="screen-center">
+      <div className="screen-center app-loading--dark">
         <div>Could not load your hostel data. You are still signed in.</div>
         <button className="btn btn-primary" onClick={retryLoad}>Retry</button>
       </div>
